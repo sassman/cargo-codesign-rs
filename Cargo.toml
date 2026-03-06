@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "cargo-sign"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Cross-platform binary signing CLI for Rust projects"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/steganogram/cargo-sign"
+
+[[bin]]
+name = "cargo-sign"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
