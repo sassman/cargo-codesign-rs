@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" width="820" height="200">
+  <!-- Sepia background -->
+  <rect width="820" height="200" rx="8" fill="#f5efe6"/>
+
   <defs>
     <radialGradient id="seal-grad" cx="50%" cy="45%" r="50%">
       <stop offset="0%" stop-color="#a83240"/>
@@ -52,11 +55,11 @@
 
   <!-- Title -->
   <text x="170" y="88" font-family="'Georgia', 'Times New Roman', serif" font-size="54" font-weight="bold" fill="#d4c4b0" letter-spacing="2">
-    <tspan fill="#c9b8a4">cargo</tspan><tspan dx="10" fill="#a83240">sign</tspan>
+    <tspan fill="#3d3229">cargo</tspan><tspan dx="10" fill="#a83240">sign</tspan>
   </text>
 
   <!-- Tagline -->
-  <text x="172" y="125" font-family="'Helvetica Neue', 'Arial', sans-serif" font-size="16" fill="#8a7e72" letter-spacing="1">
+  <text x="172" y="125" font-family="'Helvetica Neue', 'Arial', sans-serif" font-size="16" fill="#5c5043" letter-spacing="1">
     Cross-platform binary signing CLI for Rust projects
   </text>
 
