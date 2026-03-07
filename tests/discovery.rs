@@ -1,4 +1,4 @@
-use cargo_sign::discovery::parse_metadata;
+use cargo_codesign::discovery::parse_metadata;
 
 fn sample_metadata() -> &'static str {
     r#"{

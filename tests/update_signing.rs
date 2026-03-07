@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use cargo_sign::keygen::generate_keypair;
-use cargo_sign::update::{sign_bytes, verify_bytes};
+use cargo_codesign::keygen::generate_keypair;
+use cargo_codesign::update::{sign_bytes, verify_bytes};
 
 #[test]
 fn sign_and_verify_roundtrip() {
@@ -41,11 +41,11 @@ fn sign_file_and_verify_file() {
 
     std::fs::write(&archive_path, b"fake archive contents").unwrap();
 
-    cargo_sign::update::sign_file(&archive_path, &sig_path, &private_b64).unwrap();
+    cargo_codesign::update::sign_file(&archive_path, &sig_path, &private_b64).unwrap();
 
     assert!(sig_path.exists());
     let sig_content = std::fs::read_to_string(&sig_path).unwrap();
     assert!(STANDARD.decode(sig_content.trim()).is_ok());
 
-    cargo_sign::update::verify_file(&archive_path, &sig_path, &public_b64).unwrap();
+    cargo_codesign::update::verify_file(&archive_path, &sig_path, &public_b64).unwrap();
 }

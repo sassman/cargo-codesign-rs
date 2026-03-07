@@ -1,4 +1,4 @@
-use cargo_sign::subprocess::run;
+use cargo_codesign::subprocess::run;
 
 #[test]
 fn run_echo_succeeds() {

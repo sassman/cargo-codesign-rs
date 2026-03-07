@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use cargo_sign::keygen::generate_keypair;
+use cargo_codesign::keygen::generate_keypair;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 
 #[test]

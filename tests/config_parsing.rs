@@ -14,10 +14,10 @@ notarization-key-id = "APPLE_NOTARIZATION_KEY_ID"
 notarization-issuer = "APPLE_NOTARIZATION_ISSUER_ID"
 "#;
 
-    let config: cargo_sign::config::SignConfig = toml::from_str(toml_str).unwrap();
+    let config: cargo_codesign::config::SignConfig = toml::from_str(toml_str).unwrap();
     let macos = config.macos.unwrap();
     assert_eq!(macos.identity, Some("Developer ID Application".to_string()));
-    assert_eq!(macos.auth, cargo_sign::config::MacosAuth::ApiKey);
+    assert_eq!(macos.auth, cargo_codesign::config::MacosAuth::ApiKey);
     assert_eq!(macos.env.certificate, Some("MACOS_CERTIFICATE".to_string()));
 }
 
@@ -34,9 +34,9 @@ team-id = "APPLE_TEAM_ID"
 app-password = "APPLE_APP_PASSWORD"
 "#;
 
-    let config: cargo_sign::config::SignConfig = toml::from_str(toml_str).unwrap();
+    let config: cargo_codesign::config::SignConfig = toml::from_str(toml_str).unwrap();
     let macos = config.macos.unwrap();
-    assert_eq!(macos.auth, cargo_sign::config::MacosAuth::AppleId);
+    assert_eq!(macos.auth, cargo_codesign::config::MacosAuth::AppleId);
     assert_eq!(macos.env.apple_id, Some("APPLE_ID".to_string()));
 }
 
@@ -83,7 +83,7 @@ cert-warn-days = 60
 cert-error-days = 7
 "#;
 
-    let config: cargo_sign::config::SignConfig = toml::from_str(toml_str).unwrap();
+    let config: cargo_codesign::config::SignConfig = toml::from_str(toml_str).unwrap();
     assert!(config.macos.is_some());
     assert!(config.windows.is_some());
     assert!(config.linux.is_some());
@@ -96,7 +96,7 @@ cert-error-days = 7
 #[test]
 fn parse_empty_config() {
     let toml_str = "";
-    let config: cargo_sign::config::SignConfig = toml::from_str(toml_str).unwrap();
+    let config: cargo_codesign::config::SignConfig = toml::from_str(toml_str).unwrap();
     assert!(config.macos.is_none());
     assert!(config.windows.is_none());
     assert!(config.linux.is_none());

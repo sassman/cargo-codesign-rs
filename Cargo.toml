@@ -1,20 +1,20 @@
 [workspace]
 
 [package]
-name = "cargo-sign"
+name = "cargo-codesign"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Cross-platform binary signing CLI for Rust projects"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/steganogram/cargo-sign"
+repository = "https://github.com/steganogram/cargo-codesign"
 
 [lib]
-name = "cargo_sign"
+name = "cargo_codesign"
 path = "src/lib.rs"
 
 [[bin]]
-name = "cargo-sign"
+name = "cargo-codesign"
 path = "src/main.rs"
 
 [dependencies]

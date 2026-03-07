@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
 enum CargoCli {
-    Sign(SignArgs),
+    Codesign(SignArgs),
 }
 
 #[derive(clap::Args)]
@@ -92,7 +92,7 @@ enum SignCommand {
 }
 
 fn main() {
-    let CargoCli::Sign(args) = CargoCli::parse();
+    let CargoCli::Codesign(args) = CargoCli::parse();
     match args.command {
         SignCommand::Status => cmd_status(args.config.as_deref()),
         SignCommand::Macos {
@@ -145,12 +145,12 @@ fn cmd_macos(
     let _ = dotenvy::dotenv();
 
     let (config, _resolved_path, warnings) = if let Some(path) = config_path {
-        cargo_sign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
             eprintln!("✗ {e}");
             std::process::exit(2);
         })
     } else {
-        cargo_sign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
             eprintln!("✗ {e}");
             std::process::exit(2);
         })
@@ -199,12 +199,12 @@ fn cmd_macos(
 fn macos_dmg_mode(
     dmg_path: &std::path::Path,
     identity: &str,
-    macos_config: &cargo_sign::config::MacosConfig,
+    macos_config: &cargo_codesign::config::MacosConfig,
     skip_notarize: bool,
     skip_staple: bool,
     verbose: bool,
 ) {
-    use cargo_sign::platform::macos;
+    use cargo_codesign::platform::macos;
 
     eprintln!("[1/3] Codesigning DMG...");
     let opts = macos::CodesignOpts {
@@ -242,12 +242,12 @@ fn macos_app_mode(
     app_path: &std::path::Path,
     identity: &str,
     entitlements: Option<&std::path::Path>,
-    macos_config: &cargo_sign::config::MacosConfig,
+    macos_config: &cargo_codesign::config::MacosConfig,
     skip_notarize: bool,
     skip_staple: bool,
     verbose: bool,
 ) {
-    use cargo_sign::platform::macos;
+    use cargo_codesign::platform::macos;
 
     let app_name = app_path
         .file_stem()
@@ -307,10 +307,10 @@ fn macos_app_mode(
 
 #[cfg(target_os = "macos")]
 fn macos_bare_binary_mode(identity: &str, verbose: bool) {
-    use cargo_sign::platform::macos;
+    use cargo_codesign::platform::macos;
 
     eprintln!("Discovering binaries via cargo metadata...");
-    let binaries = cargo_sign::discovery::discover_binaries().unwrap_or_else(|e| {
+    let binaries = cargo_codesign::discovery::discover_binaries().unwrap_or_else(|e| {
         eprintln!("✗ Binary discovery failed: {e}");
         std::process::exit(1);
     });
@@ -369,13 +369,13 @@ fn resolve_env(name: Option<&String>, field: &str) -> String {
 #[cfg(target_os = "macos")]
 fn notarize_artifact(
     artifact: &std::path::Path,
-    macos_config: &cargo_sign::config::MacosConfig,
+    macos_config: &cargo_codesign::config::MacosConfig,
     verbose: bool,
 ) {
-    use cargo_sign::platform::macos;
+    use cargo_codesign::platform::macos;
 
     match macos_config.auth {
-        cargo_sign::config::MacosAuth::ApiKey => {
+        cargo_codesign::config::MacosAuth::ApiKey => {
             let key_b64 = resolve_env(
                 macos_config.env.notarization_key.as_ref(),
                 "notarization-key",
@@ -406,7 +406,7 @@ fn notarize_artifact(
                 },
             );
         }
-        cargo_sign::config::MacosAuth::AppleId => {
+        cargo_codesign::config::MacosAuth::AppleId => {
             let apple_id = resolve_env(macos_config.env.apple_id.as_ref(), "apple-id");
             let team_id = resolve_env(macos_config.env.team_id.as_ref(), "team-id");
             let password = resolve_env(macos_config.env.app_password.as_ref(), "app-password");
@@ -440,12 +440,12 @@ fn cmd_status(config_path: Option<&std::path::Path>) {
     let _ = dotenvy::dotenv();
 
     let (config, resolved_path, warnings) = if let Some(path) = config_path {
-        cargo_sign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
             eprintln!("✗ {e}");
             std::process::exit(2);
         })
     } else {
-        cargo_sign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
             eprintln!("✗ {e}");
             std::process::exit(2);
         })
@@ -457,7 +457,7 @@ fn cmd_status(config_path: Option<&std::path::Path>) {
     eprintln!("Using config: {}", resolved_path.display());
     eprintln!();
 
-    let report = cargo_sign::status::check_status(&config);
+    let report = cargo_codesign::status::check_status(&config);
 
     for check in &report.checks {
         if check.passed {
@@ -479,7 +479,7 @@ fn cmd_status(config_path: Option<&std::path::Path>) {
 
 fn cmd_keygen(output_private: &std::path::Path, output_public: &std::path::Path) {
     let (private_b64, public_b64) =
-        cargo_sign::keygen::generate_keypair().expect("failed to generate keypair");
+        cargo_codesign::keygen::generate_keypair().expect("failed to generate keypair");
     std::fs::write(output_private, format!("{private_b64}\n"))
         .expect("failed to write private key");
     std::fs::write(output_public, format!("{public_b64}\n")).expect("failed to write public key");
@@ -511,7 +511,7 @@ fn cmd_update(
         p.push(".sig");
         std::path::PathBuf::from(p)
     };
-    cargo_sign::update::sign_file(archive, &sig_path, &private_key_b64).unwrap_or_else(|e| {
+    cargo_codesign::update::sign_file(archive, &sig_path, &private_key_b64).unwrap_or_else(|e| {
         eprintln!("✗ Signing failed: {e}");
         std::process::exit(1);
     });
@@ -525,7 +525,7 @@ fn cmd_update(
             );
             std::process::exit(1);
         });
-        cargo_sign::update::verify_file(archive, &sig_path, pub_key_b64.trim()).unwrap_or_else(
+        cargo_codesign::update::verify_file(archive, &sig_path, pub_key_b64.trim()).unwrap_or_else(
             |e| {
                 eprintln!("✗ Verification failed: {e}");
                 std::process::exit(1);

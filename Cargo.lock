@@ -86,7 +86,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-sign"
+name = "cargo-codesign"
 version = "0.1.0"
 dependencies = [
  "base64",

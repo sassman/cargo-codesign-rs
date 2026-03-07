@@ -1,4 +1,4 @@
-use cargo_sign::manifest::parse_dist_manifest;
+use cargo_codesign::manifest::parse_dist_manifest;
 
 fn sample_manifest() -> &'static str {
     r#"{

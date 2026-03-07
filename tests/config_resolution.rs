@@ -1,4 +1,4 @@
-use cargo_sign::config::resolve::resolve_config;
+use cargo_codesign::config::resolve::resolve_config;
 use std::fs;
 use tempfile::TempDir;
 
@@ -64,7 +64,7 @@ fn resolve_explicit_path_overrides_discovery() {
     .unwrap();
 
     let (config, path, warnings) =
-        cargo_sign::config::resolve::resolve_config_from_path(&custom_path).unwrap();
+        cargo_codesign::config::resolve::resolve_config_from_path(&custom_path).unwrap();
     assert!(config.update.is_some());
     assert_eq!(path, custom_path);
     assert!(warnings.is_empty());

@@ -55,7 +55,7 @@
 
   <!-- Title -->
   <text x="170" y="88" font-family="'Georgia', 'Times New Roman', serif" font-size="54" font-weight="bold" fill="#d4c4b0" letter-spacing="2">
-    <tspan fill="#3d3229">cargo</tspan><tspan dx="10" fill="#a83240">sign</tspan>
+    <tspan fill="#3d3229">cargo</tspan><tspan dx="10" fill="#a83240">codesign</tspan>
   </text>
 
   <!-- Tagline -->
@@ -64,5 +64,5 @@
   </text>
 
   <!-- Subtle underline -->
-  <line x1="170" y1="138" x2="680" y2="138" stroke="#a83240" stroke-width="1" opacity="0.3"/>
+  <line x1="170" y1="138" x2="740" y2="138" stroke="#a83240" stroke-width="1" opacity="0.3"/>
 </svg>
