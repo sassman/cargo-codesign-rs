@@ -9,6 +9,10 @@ description = "Cross-platform binary signing CLI for Rust projects"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/steganogram/cargo-sign"
 
+[lib]
+name = "cargo_sign"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cargo-sign"
 path = "src/main.rs"
