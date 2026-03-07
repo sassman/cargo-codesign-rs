@@ -75,7 +75,7 @@ enum SignCommand {
 fn main() {
     let CargoCli::Sign(args) = CargoCli::parse();
     match args.command {
-        SignCommand::Status => eprintln!("cargo sign status: not yet implemented"),
+        SignCommand::Status => cmd_status(args.config.as_deref()),
         SignCommand::Macos => eprintln!("cargo sign macos: not yet implemented"),
         SignCommand::Windows => eprintln!("cargo sign windows: not yet implemented"),
         SignCommand::Linux => eprintln!("cargo sign linux: not yet implemented"),
@@ -92,6 +92,47 @@ fn main() {
         } => cmd_keygen(&output_private, &output_public),
         SignCommand::Workflow => eprintln!("cargo sign workflow: not yet implemented"),
         SignCommand::Init => eprintln!("cargo sign init: not yet implemented"),
+    }
+}
+
+fn cmd_status(config_path: Option<&std::path::Path>) {
+    let _ = dotenvy::dotenv();
+
+    let (config, resolved_path, warnings) = if let Some(path) = config_path {
+        cargo_sign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    } else {
+        cargo_sign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    };
+
+    for w in &warnings {
+        eprintln!("{w}");
+    }
+    eprintln!("Using config: {}", resolved_path.display());
+    eprintln!();
+
+    let report = cargo_sign::status::check_status(&config);
+
+    for check in &report.checks {
+        if check.passed {
+            eprintln!("  ✓ {}: {}", check.name, check.detail);
+        } else {
+            eprintln!("  ✗ {}: {}", check.name, check.detail);
+        }
+    }
+
+    eprintln!();
+    if report.all_passed() {
+        eprintln!("All checks passed.");
+    } else {
+        let failed = report.checks.iter().filter(|c| !c.passed).count();
+        eprintln!("{failed} check(s) failed.");
+        std::process::exit(4);
     }
 }
 

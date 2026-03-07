@@ -3,5 +3,6 @@ pub mod discovery;
 pub mod keygen;
 pub mod manifest;
 pub mod platform;
+pub mod status;
 pub mod subprocess;
 pub mod update;
