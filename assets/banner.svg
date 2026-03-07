@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" width="820" height="200">
+  <defs>
+    <radialGradient id="seal-grad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#a83240"/>
+      <stop offset="100%" stop-color="#6b1d26"/>
+    </radialGradient>
+    <filter id="seal-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Wax seal -->
+  <g transform="translate(90, 100)" filter="url(#seal-shadow)">
+    <!-- Outer wax blob shape -->
+    <path d="
+      M 0,-52
+      C 12,-54  20,-48  28,-44
+      C 34,-40  40,-46  46,-38
+      C 50,-32  54,-24  52,-16
+      C 54,-8   56, 0   54, 8
+      C 56, 16  52, 24  48, 32
+      C 44, 38  40, 46  32, 48
+      C 24, 52  16, 56   8, 54
+      C  0, 56  -8, 54 -16, 52
+      C-24, 54 -32, 48 -38, 42
+      C-44, 38 -50, 32 -52, 24
+      C-56, 16 -54,  8 -54,  0
+      C-56,-8  -54,-16 -50,-24
+      C-48,-32 -44,-40 -38,-44
+      C-32,-48 -24,-54 -16,-52
+      C -8,-56   0,-54   0,-52
+      Z
+    " fill="url(#seal-grad)"/>
+
+    <!-- Inner ring -->
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#d4a07a" stroke-width="1.5" opacity="0.5"/>
+    <circle cx="0" cy="0" r="30" fill="none" stroke="#d4a07a" stroke-width="0.8" opacity="0.35"/>
+
+    <!-- Checkmark / signature mark -->
+    <path d="M -14,4 L -4,14 L 16,-10" fill="none" stroke="#e8c9a8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Small decorative dots on inner ring -->
+    <circle cx="0" cy="-34" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="24" cy="-24" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="34" cy="0" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="24" cy="24" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="0" cy="34" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="-24" cy="24" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="-34" cy="0" r="1.5" fill="#d4a07a" opacity="0.5"/>
+    <circle cx="-24" cy="-24" r="1.5" fill="#d4a07a" opacity="0.5"/>
+  </g>
+
+  <!-- Title -->
+  <text x="170" y="88" font-family="'Georgia', 'Times New Roman', serif" font-size="54" font-weight="bold" fill="#d4c4b0" letter-spacing="2">
+    <tspan fill="#c9b8a4">cargo</tspan><tspan dx="10" fill="#a83240">sign</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="172" y="125" font-family="'Helvetica Neue', 'Arial', sans-serif" font-size="16" fill="#8a7e72" letter-spacing="1">
+    Cross-platform binary signing CLI for Rust projects
+  </text>
+
+  <!-- Subtle underline -->
+  <line x1="170" y1="138" x2="680" y2="138" stroke="#a83240" stroke-width="1" opacity="0.3"/>
+</svg>
