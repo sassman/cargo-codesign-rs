@@ -95,6 +95,7 @@ dependencies = [
  "ed25519-dalek",
  "rand",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "toml",
