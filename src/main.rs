@@ -56,7 +56,11 @@ enum SignCommand {
         skip_staple: bool,
     },
     /// Sign a Windows executable via Azure Trusted Signing
-    Windows,
+    Windows {
+        /// Install Azure Trusted Signing tools if missing
+        #[arg(long)]
+        install_tools: bool,
+    },
     /// Sign a Linux artifact with cosign or minisign
     Linux,
     /// Sign a release archive for in-app update verification (ed25519)
@@ -116,7 +120,9 @@ fn main() {
             skip_staple,
             args.verbose,
         ),
-        SignCommand::Windows => eprintln!("cargo sign windows: not yet implemented"),
+        SignCommand::Windows { install_tools } => {
+            cmd_windows(args.config.as_deref(), install_tools, args.verbose);
+        }
         SignCommand::Linux => eprintln!("cargo sign linux: not yet implemented"),
         SignCommand::Update {
             archive,
@@ -358,10 +364,9 @@ fn macos_bare_binary_mode(identity: &str, verbose: bool) {
     eprintln!("✓ Done");
 }
 
-#[cfg(target_os = "macos")]
 fn resolve_env(name: Option<&String>, field: &str) -> String {
     let env_name = name.unwrap_or_else(|| {
-        eprintln!("✗ {field} not configured in sign.toml [macos.env]");
+        eprintln!("✗ {field} not configured in sign.toml");
         std::process::exit(2);
     });
     std::env::var(env_name).unwrap_or_else(|_| {
@@ -437,6 +442,88 @@ fn cmd_macos(
     _verbose: bool,
 ) {
     eprintln!("✗ cargo sign macos requires macOS");
+    std::process::exit(3);
+}
+
+#[cfg(target_os = "windows")]
+fn cmd_windows(config_path: Option<&std::path::Path>, install_tools: bool, verbose: bool) {
+    let _ = dotenvy::dotenv();
+
+    let (config, _resolved_path, warnings) = if let Some(path) = config_path {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    } else {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    };
+
+    for w in &warnings {
+        eprintln!("{w}");
+    }
+
+    let windows_config = config.windows.as_ref().unwrap_or_else(|| {
+        eprintln!("✗ No [windows] section in sign.toml");
+        std::process::exit(2);
+    });
+
+    use cargo_codesign::platform::windows;
+
+    let dlib_path = if install_tools {
+        eprintln!("Installing Azure Trusted Signing tools...");
+        windows::install_tools(verbose).unwrap_or_else(|e| {
+            eprintln!("✗ Tool installation failed: {e}");
+            std::process::exit(3);
+        })
+    } else {
+        std::path::PathBuf::from("Azure.CodeSigning.Dlib.dll")
+    };
+
+    let endpoint = resolve_env(windows_config.env.endpoint.as_ref(), "endpoint");
+    let account_name = resolve_env(windows_config.env.account_name.as_ref(), "account-name");
+    let cert_profile = resolve_env(windows_config.env.cert_profile.as_ref(), "cert-profile");
+    let timestamp = windows_config
+        .timestamp_server
+        .as_deref()
+        .unwrap_or("http://timestamp.acs.microsoft.com");
+
+    let binaries = cargo_codesign::discovery::discover_binaries().unwrap_or_else(|e| {
+        eprintln!("✗ Binary discovery failed: {e}");
+        std::process::exit(1);
+    });
+
+    let opts = windows::SignOpts {
+        endpoint: &endpoint,
+        account_name: &account_name,
+        cert_profile: &cert_profile,
+        timestamp_server: timestamp,
+        dlib_path: &dlib_path,
+        verbose,
+    };
+
+    for bin in &binaries {
+        let exe_path = bin.release_path().with_extension("exe");
+        if !exe_path.exists() {
+            eprintln!("  ⚠ Skipping {} (not built)", bin.name);
+            continue;
+        }
+        eprintln!("  Signing {}...", bin.name);
+        windows::sign_exe(&exe_path, &opts).unwrap_or_else(|e| {
+            eprintln!("✗ Signing failed for {}: {e}", bin.name);
+            std::process::exit(1);
+        });
+        eprintln!("  ✓ {}", bin.name);
+    }
+
+    eprintln!("✓ Done");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn cmd_windows(_config_path: Option<&std::path::Path>, _install_tools: bool, _verbose: bool) {
+    eprintln!("✗ cargo codesign windows requires Windows");
     std::process::exit(3);
 }
 
