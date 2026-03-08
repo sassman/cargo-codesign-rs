@@ -22,7 +22,7 @@ cargo codesign macos --app target/release/bundle/MyApp.app
 
 ## Documentation
 
-Full documentation is available in the [cargo-codesign book](https://sassman.github.io/cargo-codesign-rs/) (coming soon).
+Full documentation is available in the [cargo-codesign book](https://sassman.github.io/cargo-codesign-rs/).
 
 ## License
 
