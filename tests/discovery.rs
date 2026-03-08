@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use cargo_codesign::discovery::parse_metadata;
 
 fn sample_metadata() -> &'static str {
@@ -58,19 +60,17 @@ fn parse_metadata_extracts_bin_targets_only() {
 #[test]
 fn release_path_is_correct() {
     let binaries = parse_metadata(sample_metadata()).unwrap();
-    assert_eq!(
-        binaries[0].release_path().to_string_lossy(),
-        "/workspace/target/release/my-cli"
-    );
+    let expected: PathBuf = ["/workspace", "target", "release", "my-cli"].iter().collect();
+    assert_eq!(binaries[0].release_path(), expected);
 }
 
 #[test]
 fn signed_release_path_is_correct() {
     let binaries = parse_metadata(sample_metadata()).unwrap();
-    assert_eq!(
-        binaries[0].signed_release_path().to_string_lossy(),
-        "/workspace/target/signed/release/my-cli"
-    );
+    let expected: PathBuf = ["/workspace", "target", "signed", "release", "my-cli"]
+        .iter()
+        .collect();
+    assert_eq!(binaries[0].signed_release_path(), expected);
 }
 
 #[test]
