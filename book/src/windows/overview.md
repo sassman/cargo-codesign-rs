@@ -1,15 +1,30 @@
 # Windows Signing
 
-> Windows signing via Azure Trusted Signing is planned but not yet implemented.
+Sign Windows executables using [Azure Trusted Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/) via `signtool.exe`.
 
-When available, `cargo codesign windows` will:
+## Usage
 
-- Discover binaries via `cargo metadata`
-- Sign `.exe` files using Azure Trusted Signing (`signtool.exe` + Azure Code Signing DLib)
-- Verify signatures after signing
-- Output signed binaries to `target/signed/`
+```bash
+cargo codesign windows
+```
 
-Configuration will use the `[windows]` and `[windows.env]` sections of `sign.toml`:
+This will:
+
+1. Load `sign.toml` and read the `[windows]` section
+2. Discover binaries via `cargo metadata`
+3. Generate `metadata.json` for Azure Trusted Signing
+4. Sign each `.exe` with `signtool.exe` using SHA-256 + timestamp
+5. Clean up temporary metadata files
+
+### Install tools automatically
+
+On a fresh CI runner, use `--install-tools` to download the Azure Code Signing DLib via NuGet:
+
+```bash
+cargo codesign windows --install-tools
+```
+
+## Configuration
 
 ```toml
 [windows]
@@ -24,4 +39,4 @@ account-name   = "AZURE_SIGNING_ACCOUNT_NAME"
 cert-profile   = "AZURE_SIGNING_CERT_PROFILE"
 ```
 
-See the [sign.toml Reference](../reference/sign-toml.md) for details.
+See the [sign.toml Reference](../reference/sign-toml.md) for full details, and [Setting Up Credentials](./credentials.md) for how to obtain Azure Trusted Signing credentials.
