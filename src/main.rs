@@ -126,7 +126,7 @@ fn main() {
             output_public,
         } => cmd_keygen(&output_private, &output_public),
         SignCommand::Workflow => eprintln!("cargo sign workflow: not yet implemented"),
-        SignCommand::Init => eprintln!("cargo sign init: not yet implemented"),
+        SignCommand::Init => cmd_init(),
     }
 }
 
@@ -533,4 +533,111 @@ fn cmd_update(
         );
         eprintln!("✓ Verified against {}", pub_key_path.display());
     }
+}
+
+fn cmd_init() {
+    use cargo_codesign::config::{LinuxMethod, MacosAuth};
+    use cargo_codesign::init::{
+        check_credentials, generate_sign_toml, print_credential_report, InitSelections,
+    };
+    use dialoguer::{Confirm, MultiSelect, Select};
+
+    let sign_toml = std::path::Path::new("sign.toml");
+    if sign_toml.exists() {
+        let overwrite = Confirm::new()
+            .with_prompt("sign.toml already exists. Overwrite?")
+            .default(false)
+            .interact()
+            .unwrap_or(false);
+        if !overwrite {
+            eprintln!("Aborted.");
+            return;
+        }
+    }
+
+    let platforms = &["macOS", "Windows", "Linux", "Update signing (ed25519)"];
+    let selected = MultiSelect::new()
+        .with_prompt("Which platforms will you sign for? (Space to select, Enter to confirm)")
+        .items(platforms)
+        .interact()
+        .unwrap_or_default();
+
+    if selected.is_empty() {
+        eprintln!("No platforms selected. Aborted.");
+        return;
+    }
+
+    let has_macos = selected.contains(&0);
+    let has_windows = selected.contains(&1);
+    let has_linux = selected.contains(&2);
+    let has_update = selected.contains(&3);
+
+    let macos_auth = if has_macos {
+        let auth_modes = &["apple-id (local/indie dev)", "api-key (CI/team)"];
+        let choice = Select::new()
+            .with_prompt("macOS auth mode")
+            .items(auth_modes)
+            .default(0)
+            .interact()
+            .unwrap_or(0);
+        Some(if choice == 0 {
+            MacosAuth::AppleId
+        } else {
+            MacosAuth::ApiKey
+        })
+    } else {
+        None
+    };
+
+    let linux_method = if has_linux {
+        let methods = &[
+            "cosign (keyless OIDC, recommended for CI)",
+            "minisign (self-managed keys)",
+            "gpg",
+        ];
+        let choice = Select::new()
+            .with_prompt("Linux signing method")
+            .items(methods)
+            .default(0)
+            .interact()
+            .unwrap_or(0);
+        Some(match choice {
+            0 => LinuxMethod::Cosign,
+            1 => LinuxMethod::Minisign,
+            _ => LinuxMethod::Gpg,
+        })
+    } else {
+        None
+    };
+
+    let selections = InitSelections {
+        macos: has_macos,
+        macos_auth,
+        windows: has_windows,
+        linux: has_linux,
+        linux_method,
+        update: has_update,
+    };
+
+    let toml_content = generate_sign_toml(&selections);
+    std::fs::write(sign_toml, &toml_content).unwrap_or_else(|e| {
+        eprintln!("✗ Failed to write sign.toml: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("✓ Created sign.toml");
+    eprintln!();
+
+    let _ = dotenvy::dotenv();
+    let checks = check_credentials(&selections);
+    let missing = checks.iter().filter(|c| !c.is_set).count();
+
+    if missing > 0 {
+        eprintln!("Credential status ({missing} missing):");
+        print_credential_report(&checks);
+        eprintln!();
+        eprintln!("Set missing credentials in .env or CI secrets, then run:");
+    } else {
+        eprintln!("All credentials are set! Run:");
+    }
+    eprintln!("  cargo codesign status");
 }
