@@ -1,5 +1,6 @@
 pub mod config;
 pub mod discovery;
+pub mod init;
 pub mod keygen;
 pub mod manifest;
 pub mod platform;
