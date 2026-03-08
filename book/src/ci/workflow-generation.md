@@ -3,7 +3,7 @@
 Generate a GitHub Actions workflow from your `sign.toml`:
 
 ```bash
-cargo codesign workflow
+cargo codesign ci
 ```
 
 This reads the configured platforms and env var names from `sign.toml` and generates `.github/workflows/release-sign.yml` with the correct secrets mappings.

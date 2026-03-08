@@ -116,12 +116,12 @@ Options:
 
 See [Verifying Signatures](../reference/verify.md).
 
-### `cargo codesign workflow`
+### `cargo codesign ci`
 
-Generate GitHub Actions workflow YAML from sign.toml.
+Generate CI workflow (GitHub Actions YAML) from sign.toml.
 
 ```
-cargo codesign workflow [OPTIONS]
+cargo codesign ci [OPTIONS]
 
 Options:
   --output <PATH>    Output path [default: .github/workflows/release-sign.yml]

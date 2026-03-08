@@ -1,5 +1,5 @@
+use cargo_codesign::ci::generate_workflow;
 use cargo_codesign::config::*;
-use cargo_codesign::workflow::generate_workflow;
 
 fn macos_apple_id_config() -> SignConfig {
     SignConfig {

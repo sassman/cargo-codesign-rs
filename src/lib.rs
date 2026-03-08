@@ -1,3 +1,4 @@
+pub mod ci;
 pub mod config;
 pub mod discovery;
 pub mod init;
@@ -8,4 +9,3 @@ pub mod status;
 pub mod subprocess;
 pub mod update;
 pub mod verify;
-pub mod workflow;
