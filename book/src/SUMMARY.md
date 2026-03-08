@@ -42,6 +42,7 @@
 # Reference
 
 - [CLI Reference](./reference/cli.md)
+- [Verifying Signatures](./reference/verify.md)
 - [sign.toml Reference](./reference/sign-toml.md)
 - [Environment Variables](./reference/env-vars.md)
 - [Exit Codes](./reference/exit-codes.md)

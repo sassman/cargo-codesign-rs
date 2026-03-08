@@ -47,6 +47,34 @@ Options:
 - `--dmg <PATH>`: Sign existing DMG → notarize → staple
 - Neither: Discover binaries via `cargo metadata`, sign each, copy to `target/signed/`
 
+### `cargo codesign windows`
+
+Sign Windows executables via Azure Trusted Signing.
+
+```
+cargo codesign windows [OPTIONS]
+
+Options:
+  --install-tools    Download Azure Trusted Signing tools via NuGet
+```
+
+See [Windows Signing Guide](../windows/overview.md).
+
+### `cargo codesign linux`
+
+Sign a Linux artifact with cosign, minisign, or gpg.
+
+```
+cargo codesign linux [OPTIONS]
+
+Options:
+  --archive <PATH>   Archive to sign (required)
+  --method <METHOD>  Override method from config: cosign, minisign, gpg
+  --output <PATH>    Signature output path
+```
+
+See [Linux Signing Guide](../linux/overview.md).
+
 ### `cargo codesign keygen`
 
 Generate an Ed25519 keypair for update signing.
@@ -73,22 +101,40 @@ Options:
   --public-key <PATH>   Also verify with this public key after signing
 ```
 
-### `cargo codesign windows`
-
-> Not yet implemented.
-
-### `cargo codesign linux`
-
-> Not yet implemented.
-
 ### `cargo codesign verify`
 
-> Not yet implemented.
+Verify a signed artifact or signature file.
+
+```
+cargo codesign verify <ARTIFACT> --method <METHOD> [OPTIONS]
+
+Options:
+  --method <METHOD>       Verification method: macos, windows, update, cosign, minisign, gpg
+  --signature <PATH>      Explicit signature/bundle file (auto-detected if omitted)
+  --public-key <PATH>     Public key for update/minisign verification
+```
+
+See [Verifying Signatures](../reference/verify.md).
 
 ### `cargo codesign workflow`
 
-> Not yet implemented.
+Generate GitHub Actions workflow YAML from sign.toml.
+
+```
+cargo codesign workflow [OPTIONS]
+
+Options:
+  --output <PATH>    Output path [default: .github/workflows/release-sign.yml]
+```
+
+See [Workflow Generation](../ci/workflow-generation.md).
 
 ### `cargo codesign init`
 
-> Not yet implemented.
+Create sign.toml with guided interactive prompts.
+
+```
+cargo codesign init
+```
+
+See [Creating sign.toml](../getting-started/init.md).
