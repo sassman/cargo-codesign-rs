@@ -386,6 +386,7 @@ fn macos_bare_binary_mode(identity: &str, verbose: bool) {
     eprintln!("✓ Done");
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn resolve_env(name: Option<&String>, field: &str) -> String {
     let env_name = name.unwrap_or_else(|| {
         eprintln!("✗ {field} not configured in sign.toml");
@@ -469,6 +470,8 @@ fn cmd_macos(
 
 #[cfg(target_os = "windows")]
 fn cmd_windows(config_path: Option<&std::path::Path>, install_tools: bool, verbose: bool) {
+    use cargo_codesign::platform::windows;
+
     let _ = dotenvy::dotenv();
 
     let (config, _resolved_path, warnings) = if let Some(path) = config_path {
@@ -491,8 +494,6 @@ fn cmd_windows(config_path: Option<&std::path::Path>, install_tools: bool, verbo
         eprintln!("✗ No [windows] section in sign.toml");
         std::process::exit(2);
     });
-
-    use cargo_codesign::platform::windows;
 
     let dlib_path = if install_tools {
         eprintln!("Installing Azure Trusted Signing tools...");
@@ -580,14 +581,11 @@ fn cmd_linux(
         std::process::exit(2);
     });
 
-    use cargo_codesign::config::LinuxMethod;
-    use cargo_codesign::platform::linux;
-
     let method = if let Some(m) = method_override {
         match m {
-            "cosign" => LinuxMethod::Cosign,
-            "minisign" => LinuxMethod::Minisign,
-            "gpg" => LinuxMethod::Gpg,
+            "cosign" => cargo_codesign::config::LinuxMethod::Cosign,
+            "minisign" => cargo_codesign::config::LinuxMethod::Minisign,
+            "gpg" => cargo_codesign::config::LinuxMethod::Gpg,
             other => {
                 eprintln!("✗ Unknown method: {other} (expected: cosign, minisign, gpg)");
                 std::process::exit(2);
@@ -597,14 +595,14 @@ fn cmd_linux(
         linux_config.method
     };
 
-    let opts = linux::SignOpts { verbose, output };
+    let opts = cargo_codesign::platform::linux::SignOpts { verbose, output };
 
     let sig_path = match method {
-        LinuxMethod::Cosign => {
+        cargo_codesign::config::LinuxMethod::Cosign => {
             eprintln!("Signing with cosign (keyless OIDC)...");
-            linux::sign_cosign(archive, &opts)
+            cargo_codesign::platform::linux::sign_cosign(archive, &opts)
         }
-        LinuxMethod::Minisign => {
+        cargo_codesign::config::LinuxMethod::Minisign => {
             let key_env = linux_config
                 .env
                 .key
@@ -615,11 +613,11 @@ fn cmd_linux(
                 std::process::exit(1);
             });
             eprintln!("Signing with minisign...");
-            linux::sign_minisign(archive, &key_content, &opts)
+            cargo_codesign::platform::linux::sign_minisign(archive, &key_content, &opts)
         }
-        LinuxMethod::Gpg => {
+        cargo_codesign::config::LinuxMethod::Gpg => {
             eprintln!("Signing with gpg...");
-            linux::sign_gpg(archive, &opts)
+            cargo_codesign::platform::linux::sign_gpg(archive, &opts)
         }
     };
 
