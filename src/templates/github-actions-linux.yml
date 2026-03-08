@@ -1,0 +1,17 @@
+  sign-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-codesign
+        run: cargo install cargo-codesign --locked
+
+      - name: Check signing credentials
+        run: cargo codesign status
+        env:
+{LINUX_SECRETS}
+
+      - name: Sign Linux artifacts
+        run: cargo codesign linux --archive "${{ inputs.artifact-dir }}"
+        env:
+{LINUX_SECRETS}

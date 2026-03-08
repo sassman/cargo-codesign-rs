@@ -1,0 +1,10 @@
+name: Sign Release Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      artifact-dir:
+        type: string
+        default: "target/release"
+
+{JOBS}

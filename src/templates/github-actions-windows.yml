@@ -1,0 +1,17 @@
+  sign-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-codesign
+        run: cargo install cargo-codesign --locked
+
+      - name: Check signing credentials
+        run: cargo codesign status
+        env:
+{WINDOWS_SECRETS}
+
+      - name: Sign Windows artifacts
+        run: cargo codesign windows
+        env:
+{WINDOWS_SECRETS}

@@ -1,0 +1,17 @@
+  sign-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-codesign
+        run: cargo install cargo-codesign --locked
+
+      - name: Check signing credentials
+        run: cargo codesign status
+        env:
+{MACOS_SECRETS}
+
+      - name: Sign macOS artifacts
+        run: cargo codesign macos --app "${{ inputs.artifact-dir }}"
+        env:
+{MACOS_SECRETS}
