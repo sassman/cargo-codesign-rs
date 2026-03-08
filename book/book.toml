@@ -1,7 +1,6 @@
 [book]
 authors = ["steganogram"]
 language = "en"
-multilingual = false
 src = "src"
 title = "cargo-codesign"
 description = "Cross-platform binary signing for Rust projects"
