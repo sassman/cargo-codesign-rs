@@ -86,7 +86,11 @@ enum SignCommand {
         output_public: std::path::PathBuf,
     },
     /// Generate GitHub Actions YAML
-    Workflow,
+    Workflow {
+        /// Output path for generated workflow
+        #[arg(long, default_value = ".github/workflows/release-sign.yml")]
+        output: std::path::PathBuf,
+    },
     /// Create sign.toml with guided prompts
     Init,
 }
@@ -125,7 +129,7 @@ fn main() {
             output_private,
             output_public,
         } => cmd_keygen(&output_private, &output_public),
-        SignCommand::Workflow => eprintln!("cargo sign workflow: not yet implemented"),
+        SignCommand::Workflow { output } => cmd_workflow(args.config.as_deref(), &output),
         SignCommand::Init => cmd_init(),
     }
 }
@@ -475,6 +479,43 @@ fn cmd_status(config_path: Option<&std::path::Path>) {
         eprintln!("{failed} check(s) failed.");
         std::process::exit(4);
     }
+}
+
+fn cmd_workflow(config_path: Option<&std::path::Path>, output: &std::path::Path) {
+    let _ = dotenvy::dotenv();
+
+    let (config, resolved_path, warnings) = if let Some(path) = config_path {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    } else {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    };
+
+    for w in &warnings {
+        eprintln!("{w}");
+    }
+    eprintln!("Using config: {}", resolved_path.display());
+
+    let yaml = cargo_codesign::workflow::generate_workflow(&config);
+
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent).unwrap_or_else(|e| {
+            eprintln!("✗ Failed to create directory {}: {e}", parent.display());
+            std::process::exit(1);
+        });
+    }
+
+    std::fs::write(output, &yaml).unwrap_or_else(|e| {
+        eprintln!("✗ Failed to write {}: {e}", output.display());
+        std::process::exit(1);
+    });
+
+    eprintln!("✓ Generated: {}", output.display());
 }
 
 fn cmd_keygen(output_private: &std::path::Path, output_public: &std::path::Path) {
