@@ -89,7 +89,19 @@ enum SignCommand {
         public_key: Option<std::path::PathBuf>,
     },
     /// Verify a signed artifact or signature file
-    Verify,
+    Verify {
+        /// Artifact to verify
+        artifact: std::path::PathBuf,
+        /// Verification method: macos, windows, update, cosign, minisign, gpg
+        #[arg(long)]
+        method: String,
+        /// Explicit signature/bundle file path (auto-detected if omitted)
+        #[arg(long)]
+        signature: Option<std::path::PathBuf>,
+        /// Public key file for update/minisign verification
+        #[arg(long)]
+        public_key: Option<std::path::PathBuf>,
+    },
     /// Generate an ed25519 keypair for update signing
     Keygen {
         /// Output path for private key
@@ -152,7 +164,18 @@ fn main() {
             key_env,
             public_key,
         } => cmd_update(&archive, output.as_deref(), &key_env, public_key.as_deref()),
-        SignCommand::Verify => eprintln!("cargo sign verify: not yet implemented"),
+        SignCommand::Verify {
+            artifact,
+            method,
+            signature,
+            public_key,
+        } => cmd_verify(
+            &artifact,
+            &method,
+            signature.as_deref(),
+            public_key.as_deref(),
+            args.verbose,
+        ),
         SignCommand::Keygen {
             output_private,
             output_public,
@@ -640,6 +663,163 @@ fn cmd_linux(
 ) {
     eprintln!("✗ cargo codesign linux requires Linux");
     std::process::exit(3);
+}
+
+fn cmd_verify(
+    artifact: &std::path::Path,
+    method: &str,
+    signature: Option<&std::path::Path>,
+    public_key: Option<&std::path::Path>,
+    verbose: bool,
+) {
+    if !artifact.exists() {
+        eprintln!("✗ Artifact not found: {}", artifact.display());
+        std::process::exit(1);
+    }
+
+    let sig_path_buf;
+    let sig_path = if let Some(p) = signature {
+        p
+    } else {
+        sig_path_buf = cargo_codesign::verify::default_signature_path(artifact, method);
+        &sig_path_buf
+    };
+
+    match method {
+        "macos" => cmd_verify_macos(artifact, verbose),
+        "windows" => cmd_verify_windows(artifact, verbose),
+        "update" => cmd_verify_update(artifact, sig_path, public_key),
+        "cosign" | "minisign" | "gpg" => {
+            cmd_verify_linux(artifact, method, sig_path, public_key, verbose);
+        }
+        other => {
+            eprintln!("✗ Unknown method: {other}");
+            eprintln!("  Supported: macos, windows, update, cosign, minisign, gpg");
+            std::process::exit(2);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn cmd_verify_macos(artifact: &std::path::Path, verbose: bool) {
+    eprintln!("Verifying macOS code signature...");
+    cargo_codesign::platform::macos::verify_codesign(artifact, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Codesign verification failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("  ✓ codesign --verify passed");
+
+    eprintln!("Checking Gatekeeper assessment...");
+    cargo_codesign::platform::macos::verify_gatekeeper(artifact, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Gatekeeper assessment failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("  ✓ spctl --assess passed");
+    eprintln!("✓ Verified: {}", artifact.display());
+}
+
+#[cfg(not(target_os = "macos"))]
+fn cmd_verify_macos(_artifact: &std::path::Path, _verbose: bool) {
+    eprintln!("✗ macOS verification requires macOS");
+    std::process::exit(3);
+}
+
+#[cfg(target_os = "windows")]
+fn cmd_verify_windows(artifact: &std::path::Path, verbose: bool) {
+    eprintln!("Verifying Windows signature...");
+    cargo_codesign::platform::windows::verify_exe(artifact, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Signature verification failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("✓ Verified: {}", artifact.display());
+}
+
+#[cfg(not(target_os = "windows"))]
+fn cmd_verify_windows(_artifact: &std::path::Path, _verbose: bool) {
+    eprintln!("✗ Windows verification requires Windows");
+    std::process::exit(3);
+}
+
+fn cmd_verify_update(
+    artifact: &std::path::Path,
+    sig_path: &std::path::Path,
+    public_key: Option<&std::path::Path>,
+) {
+    let pub_key_path = public_key.unwrap_or_else(|| {
+        eprintln!("✗ --public-key is required for update verification");
+        std::process::exit(2);
+    });
+    let pub_key_b64 = std::fs::read_to_string(pub_key_path).unwrap_or_else(|e| {
+        eprintln!(
+            "✗ Failed to read public key {}: {e}",
+            pub_key_path.display()
+        );
+        std::process::exit(1);
+    });
+    eprintln!("Verifying ed25519 signature...");
+    cargo_codesign::update::verify_file(artifact, sig_path, pub_key_b64.trim()).unwrap_or_else(
+        |e| {
+            eprintln!("✗ Verification failed: {e}");
+            std::process::exit(1);
+        },
+    );
+    eprintln!("✓ Verified: {}", artifact.display());
+}
+
+fn cmd_verify_linux(
+    artifact: &std::path::Path,
+    method: &str,
+    sig_path: &std::path::Path,
+    public_key: Option<&std::path::Path>,
+    verbose: bool,
+) {
+    if !sig_path.exists() {
+        eprintln!("✗ Signature file not found: {}", sig_path.display());
+        eprintln!("  Use --signature to specify the path");
+        std::process::exit(1);
+    }
+
+    match method {
+        "cosign" => {
+            eprintln!("Verifying cosign bundle...");
+            cargo_codesign::platform::linux::verify_cosign(artifact, sig_path, verbose)
+                .unwrap_or_else(|e| {
+                    eprintln!("✗ Verification failed: {e}");
+                    std::process::exit(1);
+                });
+        }
+        "minisign" => {
+            let pub_key_path = public_key.unwrap_or_else(|| {
+                eprintln!("✗ --public-key is required for minisign verification");
+                std::process::exit(2);
+            });
+            let pub_key = std::fs::read_to_string(pub_key_path).unwrap_or_else(|e| {
+                eprintln!("✗ Failed to read public key: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("Verifying minisign signature...");
+            cargo_codesign::platform::linux::verify_minisign(
+                artifact,
+                sig_path,
+                pub_key.trim(),
+                verbose,
+            )
+            .unwrap_or_else(|e| {
+                eprintln!("✗ Verification failed: {e}");
+                std::process::exit(1);
+            });
+        }
+        "gpg" => {
+            eprintln!("Verifying GPG signature...");
+            cargo_codesign::platform::linux::verify_gpg(artifact, sig_path, verbose)
+                .unwrap_or_else(|e| {
+                    eprintln!("✗ Verification failed: {e}");
+                    std::process::exit(1);
+                });
+        }
+        _ => unreachable!(),
+    }
+    eprintln!("✓ Verified: {}", artifact.display());
 }
 
 fn cmd_status(config_path: Option<&std::path::Path>) {
