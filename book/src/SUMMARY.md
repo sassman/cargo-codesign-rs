@@ -20,10 +20,12 @@
 # Windows Signing Guide
 
 - [Overview](./windows/overview.md)
+- [Setting Up Credentials](./windows/credentials.md)
 
 # Linux Signing Guide
 
 - [Overview](./linux/overview.md)
+- [Setting Up Credentials](./linux/credentials.md)
 
 # Update Signing
 
