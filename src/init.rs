@@ -290,7 +290,22 @@ pub fn print_credential_report(checks: &[CredentialCheck]) {
             eprintln!("  \u{2713} {:<35} set", check.env_var);
         } else {
             eprintln!("  \u{2717} {:<35} {}", check.env_var, check.description);
-            eprintln!("    \u{2192} {}", check.help_url);
+        }
+    }
+
+    let missing_urls: Vec<&str> = checks
+        .iter()
+        .filter(|c| !c.is_set)
+        .map(|c| c.help_url.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    if !missing_urls.is_empty() {
+        eprintln!();
+        eprintln!("How to obtain missing credentials:");
+        for url in &missing_urls {
+            eprintln!("  \u{2192} {url}");
         }
     }
 }
