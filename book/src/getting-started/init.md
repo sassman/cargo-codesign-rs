@@ -22,9 +22,11 @@ After generating the file, it checks which credentials are already set in your e
 Credential status (2 missing):
   ✓ APPLE_ID                            set
   ✗ APPLE_TEAM_ID                       Team ID from App Store Connect > Membership
-    → https://sassman.github.io/cargo-codesign-rs/macos/credentials.html
   ✗ APPLE_APP_PASSWORD                  app-specific password for notarization
-    → https://sassman.github.io/cargo-codesign-rs/macos/auth-modes.html
+
+How to obtain missing credentials:
+  → https://sassman.github.io/cargo-codesign-rs/macos/auth-modes.html
+  → https://sassman.github.io/cargo-codesign-rs/macos/credentials.html
 
 Set missing credentials in .env or CI secrets, then run:
   cargo codesign status

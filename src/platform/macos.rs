@@ -308,13 +308,28 @@ pub fn verify_codesign(path: &Path, verbose: bool) -> Result<(), MacosSignError>
 }
 
 /// Verify a macOS artifact passes Gatekeeper via `spctl --assess`.
+///
+/// Uses `--type open --context context:primary-signature` for `.dmg` disk images,
+/// and `--type execute` for `.app` bundles and bare binaries.
 pub fn verify_gatekeeper(path: &Path, verbose: bool) -> Result<(), MacosSignError> {
     let path_str = path.to_string_lossy().to_string();
-    let output = run(
-        "spctl",
-        &["--assess", "--type", "execute", "-vvv", &path_str],
-        verbose,
-    )?;
+    let is_dmg = path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("dmg"));
+    let args: Vec<&str> = if is_dmg {
+        vec![
+            "--assess",
+            "--type",
+            "open",
+            "--context",
+            "context:primary-signature",
+            "-vvv",
+            &path_str,
+        ]
+    } else {
+        vec!["--assess", "--type", "execute", "-vvv", &path_str]
+    };
+    let output = run("spctl", &args, verbose)?;
     if !output.success {
         return Err(MacosSignError::CodesignFailed {
             path: path.to_path_buf(),

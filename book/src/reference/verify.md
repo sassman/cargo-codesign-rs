@@ -20,7 +20,7 @@ cargo codesign verify <ARTIFACT> --method <METHOD> [OPTIONS]
 
 ### macOS
 
-Runs `codesign --verify --deep --strict -vvv` and `spctl --assess` on the artifact. No signature file needed — macOS code signatures are embedded.
+Runs `codesign --verify --deep --strict -vvv` and `spctl --assess` on the artifact. No signature file needed — macOS code signatures are embedded. For `.dmg` files, Gatekeeper assessment uses `--type open --context context:primary-signature`; for `.app` bundles and binaries it uses `--type execute`.
 
 ```bash
 cargo codesign verify MyApp.app --method macos
