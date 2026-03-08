@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.\n
 """
 body = """
 {%- macro remote_url() -%}
-  https://github.com/steganogram/cargo-codesign
+  https://github.com/sassman/cargo-codesign-rs
 {%- endmacro -%}
 
 {% if version -%}

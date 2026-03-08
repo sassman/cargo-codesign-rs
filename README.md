@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://crates.io/crates/cargo-codesign"><img src="https://img.shields.io/crates/v/cargo-codesign.svg" alt="crates.io"/></a>
-  <a href="https://github.com/steganogram/cargo-codesign/blob/main/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue" alt="license"/></a>
+  <a href="https://github.com/sassman/cargo-codesign-rs/blob/main/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue" alt="license"/></a>
 </p>
 
 ---
@@ -22,7 +22,7 @@ cargo codesign macos --app target/release/bundle/MyApp.app
 
 ## Documentation
 
-Full documentation is available in the [cargo-codesign book](https://steganogram.github.io/cargo-codesign/) (coming soon).
+Full documentation is available in the [cargo-codesign book](https://sassman.github.io/cargo-codesign-rs/) (coming soon).
 
 ## License
 

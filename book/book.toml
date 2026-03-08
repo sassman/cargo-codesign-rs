@@ -9,5 +9,5 @@ description = "Cross-platform binary signing for Rust projects"
 build-dir = "../target/book"
 
 [output.html]
-git-repository-url = "https://github.com/steganogram/cargo-codesign"
-edit-url-template = "https://github.com/steganogram/cargo-codesign/edit/main/book/{path}"
+git-repository-url = "https://github.com/sassman/cargo-codesign-rs"
+edit-url-template = "https://github.com/sassman/cargo-codesign-rs/edit/main/book/{path}"

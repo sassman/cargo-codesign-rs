@@ -7,7 +7,7 @@ edition = "2021"
 rust-version = "1.80"
 description = "Cross-platform binary signing CLI for Rust projects"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/steganogram/cargo-codesign"
+repository = "https://github.com/sassman/cargo-codesign-rs"
 
 [lib]
 name = "cargo_codesign"

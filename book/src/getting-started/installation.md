@@ -3,7 +3,7 @@
 ## From source (recommended during early development)
 
 ```bash
-cargo install --path vendored/cargo-codesign
+cargo install --git https://github.com/sassman/cargo-codesign-rs
 ```
 
 Or if cargo-codesign has been published:
