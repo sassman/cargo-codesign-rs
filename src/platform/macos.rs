@@ -290,6 +290,40 @@ pub fn import_certificate(
     Ok(PathBuf::from(keychain_name))
 }
 
+/// Verify a macOS artifact's code signature via `codesign --verify`.
+pub fn verify_codesign(path: &Path, verbose: bool) -> Result<(), MacosSignError> {
+    let path_str = path.to_string_lossy().to_string();
+    let output = run(
+        "codesign",
+        &["--verify", "--deep", "--strict", "-vvv", &path_str],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(MacosSignError::CodesignFailed {
+            path: path.to_path_buf(),
+            detail: output.stderr,
+        });
+    }
+    Ok(())
+}
+
+/// Verify a macOS artifact passes Gatekeeper via `spctl --assess`.
+pub fn verify_gatekeeper(path: &Path, verbose: bool) -> Result<(), MacosSignError> {
+    let path_str = path.to_string_lossy().to_string();
+    let output = run(
+        "spctl",
+        &["--assess", "--type", "execute", "-vvv", &path_str],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(MacosSignError::CodesignFailed {
+            path: path.to_path_buf(),
+            detail: output.stderr,
+        });
+    }
+    Ok(())
+}
+
 /// Delete an ephemeral keychain created by `import_certificate`.
 pub fn delete_keychain(keychain_path: &Path, verbose: bool) -> Result<(), MacosSignError> {
     let keychain_str = keychain_path.to_string_lossy().to_string();

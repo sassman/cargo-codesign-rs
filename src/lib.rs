@@ -7,4 +7,5 @@ pub mod platform;
 pub mod status;
 pub mod subprocess;
 pub mod update;
+pub mod verify;
 pub mod workflow;

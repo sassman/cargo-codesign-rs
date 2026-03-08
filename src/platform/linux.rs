@@ -103,6 +103,64 @@ pub fn sign_gpg(archive: &Path, opts: &SignOpts<'_>) -> Result<PathBuf, LinuxSig
     Ok(sig_path)
 }
 
+/// Verify a cosign bundle.
+pub fn verify_cosign(archive: &Path, bundle: &Path, verbose: bool) -> Result<(), LinuxSignError> {
+    let archive_str = archive.to_string_lossy().to_string();
+    let bundle_str = bundle.to_string_lossy().to_string();
+
+    let output = run(
+        "cosign",
+        &["verify-blob", "--bundle", &bundle_str, &archive_str],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(LinuxSignError::SigningFailed {
+            path: archive.to_path_buf(),
+            detail: output.stderr,
+        });
+    }
+    Ok(())
+}
+
+/// Verify a minisign signature.
+pub fn verify_minisign(
+    archive: &Path,
+    sig_path: &Path,
+    public_key: &str,
+    verbose: bool,
+) -> Result<(), LinuxSignError> {
+    let archive_str = archive.to_string_lossy().to_string();
+    let sig_str = sig_path.to_string_lossy().to_string();
+
+    let output = run(
+        "minisign",
+        &["-V", "-P", public_key, "-m", &archive_str, "-x", &sig_str],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(LinuxSignError::SigningFailed {
+            path: archive.to_path_buf(),
+            detail: output.stderr,
+        });
+    }
+    Ok(())
+}
+
+/// Verify a GPG detached signature.
+pub fn verify_gpg(archive: &Path, sig_path: &Path, verbose: bool) -> Result<(), LinuxSignError> {
+    let archive_str = archive.to_string_lossy().to_string();
+    let sig_str = sig_path.to_string_lossy().to_string();
+
+    let output = run("gpg", &["--verify", &sig_str, &archive_str], verbose)?;
+    if !output.success {
+        return Err(LinuxSignError::SigningFailed {
+            path: archive.to_path_buf(),
+            detail: output.stderr,
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
