@@ -68,7 +68,7 @@ pub struct WindowsEnvConfig {
 
 // --- Linux ---
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LinuxMethod {
     Cosign,

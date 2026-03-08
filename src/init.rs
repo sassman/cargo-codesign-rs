@@ -133,10 +133,7 @@ pub fn check_credentials(selections: &InitSelections) -> Vec<CredentialCheck> {
     }
 
     if selections.linux {
-        let method = selections
-            .linux_method
-            .as_ref()
-            .unwrap_or(&LinuxMethod::Cosign);
+        let method = selections.linux_method.unwrap_or(LinuxMethod::Cosign);
         check_linux_creds(&mut checks, method);
     }
 
@@ -248,7 +245,7 @@ fn check_windows_creds(checks: &mut Vec<CredentialCheck>) {
     );
 }
 
-fn check_linux_creds(checks: &mut Vec<CredentialCheck>, method: &LinuxMethod) {
+fn check_linux_creds(checks: &mut Vec<CredentialCheck>, method: LinuxMethod) {
     match method {
         LinuxMethod::Cosign => {
             check_cred(

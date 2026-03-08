@@ -61,8 +61,18 @@ enum SignCommand {
         #[arg(long)]
         install_tools: bool,
     },
-    /// Sign a Linux artifact with cosign or minisign
-    Linux,
+    /// Sign a Linux artifact with cosign, minisign, or gpg
+    Linux {
+        /// Archive to sign
+        #[arg(long)]
+        archive: std::path::PathBuf,
+        /// Override signing method from config (cosign, minisign, gpg)
+        #[arg(long)]
+        method: Option<String>,
+        /// Signature output path
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
     /// Sign a release archive for in-app update verification (ed25519)
     Update {
         /// Archive to sign
@@ -123,7 +133,19 @@ fn main() {
         SignCommand::Windows { install_tools } => {
             cmd_windows(args.config.as_deref(), install_tools, args.verbose);
         }
-        SignCommand::Linux => eprintln!("cargo sign linux: not yet implemented"),
+        SignCommand::Linux {
+            archive,
+            method,
+            output,
+        } => {
+            cmd_linux(
+                args.config.as_deref(),
+                &archive,
+                method.as_deref(),
+                output.as_deref(),
+                args.verbose,
+            );
+        }
         SignCommand::Update {
             archive,
             output,
@@ -524,6 +546,101 @@ fn cmd_windows(config_path: Option<&std::path::Path>, install_tools: bool, verbo
 #[cfg(not(target_os = "windows"))]
 fn cmd_windows(_config_path: Option<&std::path::Path>, _install_tools: bool, _verbose: bool) {
     eprintln!("✗ cargo codesign windows requires Windows");
+    std::process::exit(3);
+}
+
+#[cfg(target_os = "linux")]
+fn cmd_linux(
+    config_path: Option<&std::path::Path>,
+    archive: &std::path::Path,
+    method_override: Option<&str>,
+    output: Option<&std::path::Path>,
+    verbose: bool,
+) {
+    let _ = dotenvy::dotenv();
+
+    let (config, _resolved_path, warnings) = if let Some(path) = config_path {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    } else {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    };
+
+    for w in &warnings {
+        eprintln!("{w}");
+    }
+
+    let linux_config = config.linux.as_ref().unwrap_or_else(|| {
+        eprintln!("✗ No [linux] section in sign.toml");
+        std::process::exit(2);
+    });
+
+    use cargo_codesign::config::LinuxMethod;
+    use cargo_codesign::platform::linux;
+
+    let method = if let Some(m) = method_override {
+        match m {
+            "cosign" => LinuxMethod::Cosign,
+            "minisign" => LinuxMethod::Minisign,
+            "gpg" => LinuxMethod::Gpg,
+            other => {
+                eprintln!("✗ Unknown method: {other} (expected: cosign, minisign, gpg)");
+                std::process::exit(2);
+            }
+        }
+    } else {
+        linux_config.method
+    };
+
+    let opts = linux::SignOpts { verbose, output };
+
+    let sig_path = match method {
+        LinuxMethod::Cosign => {
+            eprintln!("Signing with cosign (keyless OIDC)...");
+            linux::sign_cosign(archive, &opts)
+        }
+        LinuxMethod::Minisign => {
+            let key_env = linux_config
+                .env
+                .key
+                .as_deref()
+                .unwrap_or("MINISIGN_PRIVATE_KEY");
+            let key_content = std::env::var(key_env).unwrap_or_else(|_| {
+                eprintln!("✗ Environment variable {key_env} not set");
+                std::process::exit(1);
+            });
+            eprintln!("Signing with minisign...");
+            linux::sign_minisign(archive, &key_content, &opts)
+        }
+        LinuxMethod::Gpg => {
+            eprintln!("Signing with gpg...");
+            linux::sign_gpg(archive, &opts)
+        }
+    };
+
+    match sig_path {
+        Ok(path) => eprintln!("✓ Signature: {}", path.display()),
+        Err(e) => {
+            eprintln!("✗ Signing failed: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cmd_linux(
+    _config_path: Option<&std::path::Path>,
+    _archive: &std::path::Path,
+    _method_override: Option<&str>,
+    _output: Option<&std::path::Path>,
+    _verbose: bool,
+) {
+    eprintln!("✗ cargo codesign linux requires Linux");
     std::process::exit(3);
 }
 
