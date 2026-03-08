@@ -13,7 +13,7 @@ pub enum ResolveError {
     #[error("failed to parse {path}: {source}")]
     ParseError {
         path: PathBuf,
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
 }
 
@@ -26,7 +26,7 @@ pub fn resolve_config_from_path(
     })?;
     let config: SignConfig = toml::from_str(&content).map_err(|e| ResolveError::ParseError {
         path: path.to_path_buf(),
-        source: e,
+        source: Box::new(e),
     })?;
     Ok((config, path.to_path_buf(), Vec::new()))
 }
