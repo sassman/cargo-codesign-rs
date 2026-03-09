@@ -25,8 +25,8 @@ APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 
 | Env var (default name) | Description |
 |------------------------|-------------|
-| `MACOS_CERTIFICATE` | Base64-encoded `.p12` certificate |
-| `MACOS_CERTIFICATE_PASSWORD` | Password for the `.p12` file |
+| `APPLE_CERTIFICATE` | Base64-encoded `.p12` certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` file |
 | `APPLE_NOTARIZATION_KEY` | Base64-encoded `.p8` App Store Connect API key |
 | `APPLE_NOTARIZATION_KEY_ID` | API key ID (from App Store Connect) |
 | `APPLE_NOTARIZATION_ISSUER_ID` | Issuer ID (from App Store Connect) |

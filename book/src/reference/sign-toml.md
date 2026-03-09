@@ -25,8 +25,8 @@ auth = "api-key"    # "api-key" (CI) or "apple-id" (local/indie)
 
 [macos.env]
 # api-key mode
-certificate          = "MACOS_CERTIFICATE"
-certificate-password = "MACOS_CERTIFICATE_PASSWORD"
+certificate          = "APPLE_CERTIFICATE"
+certificate-password = "APPLE_CERTIFICATE_PASSWORD"
 notarization-key     = "APPLE_NOTARIZATION_KEY"
 notarization-key-id  = "APPLE_NOTARIZATION_KEY_ID"
 notarization-issuer  = "APPLE_NOTARIZATION_ISSUER_ID"
