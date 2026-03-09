@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-03-09
+
+### Bug Fixes
+
+- Release pipeline fails when unix/windows archive outputs are empty
+
+
+
 ## [0.1.1] - 2026-03-09
 
 ### Features
