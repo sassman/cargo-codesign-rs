@@ -93,11 +93,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           artifactErrorsFailBuild: true
-          artifacts: |
-            ${{ steps.archive_unix.outputs.filename }}
-            ${{ steps.archive_unix.outputs.filename }}.sha256
-            ${{ steps.archive_windows.outputs.filename }}
-            ${{ steps.archive_windows.outputs.filename }}.sha256
+          artifacts: "${{ format('{0},{0}.sha256', steps.archive_unix.outputs.filename || steps.archive_windows.outputs.filename) }}"
           artifactContentType: application/octet-stream
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
