@@ -234,6 +234,34 @@ pub fn decode_cert_to_tempfile(
     Ok(p12_path)
 }
 
+const KEYCHAIN_STATE_FILE: &str = ".codesign-keychain";
+
+/// Derive the keychain state file path from the project root.
+pub fn keychain_state_path() -> PathBuf {
+    PathBuf::from("target").join(KEYCHAIN_STATE_FILE)
+}
+
+/// Persist keychain name so `--ci-cleanup-cert` can find it later.
+pub fn save_keychain_state(path: &Path, keychain_name: &str) -> Result<(), MacosSignError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            MacosSignError::KeychainFailed(format!("failed to create target dir: {e}"))
+        })?;
+    }
+    std::fs::write(path, keychain_name).map_err(|e| {
+        MacosSignError::KeychainFailed(format!("failed to write keychain state: {e}"))
+    })?;
+    Ok(())
+}
+
+/// Load the keychain name from a previous `--ci-import-cert` run.
+pub fn load_keychain_state(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
 /// Returns the keychain path for later cleanup.
 pub fn import_certificate(
@@ -393,5 +421,23 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let result = decode_cert_to_tempfile("not-valid-base64!!!", dir.path());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn keychain_state_roundtrip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state_path = dir.path().join(".codesign-keychain");
+
+        save_keychain_state(&state_path, "cargo-sign-12345.keychain").unwrap();
+        let loaded = load_keychain_state(&state_path).unwrap();
+        assert_eq!(loaded, "cargo-sign-12345.keychain");
+    }
+
+    #[test]
+    fn load_keychain_state_returns_none_when_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state_path = dir.path().join(".codesign-keychain");
+        let result = load_keychain_state(&state_path);
+        assert!(result.is_none());
     }
 }
