@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use ed25519_dalek::SigningKey;
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 pub fn generate_keypair() -> Result<(String, String), Box<dyn std::error::Error>> {
     let signing_key = SigningKey::generate(&mut OsRng);

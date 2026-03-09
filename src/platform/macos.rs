@@ -1,4 +1,5 @@
 use crate::subprocess::{run, SubprocessError};
+use rand_core::RngCore;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -222,7 +223,7 @@ pub fn import_certificate(
     cert_password: &str,
     verbose: bool,
 ) -> Result<PathBuf, MacosSignError> {
-    let random_suffix: u64 = rand::random();
+    let random_suffix: u64 = rand_core::OsRng.next_u64();
     let keychain_name = format!("cargo-sign-{random_suffix}.keychain");
     let keychain_password = format!("{random_suffix}");
 
