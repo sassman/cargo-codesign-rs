@@ -216,6 +216,24 @@ pub fn staple(artifact: &Path, verbose: bool) -> Result<(), MacosSignError> {
     Ok(())
 }
 
+/// Decode a base64-encoded `.p12` certificate to a temp file.
+/// Returns the path to the temp `.p12` file.
+pub fn decode_cert_to_tempfile(
+    cert_base64: &str,
+    dir: &std::path::Path,
+) -> Result<PathBuf, MacosSignError> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(cert_base64.trim())
+        .map_err(|e| MacosSignError::KeychainFailed(format!("base64 decode failed: {e}")))?;
+
+    let p12_path = dir.join("cargo-codesign-cert.p12");
+    std::fs::write(&p12_path, &bytes)
+        .map_err(|e| MacosSignError::KeychainFailed(format!("failed to write temp .p12: {e}")))?;
+
+    Ok(p12_path)
+}
+
 /// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
 /// Returns the keychain path for later cleanup.
 pub fn import_certificate(
@@ -351,4 +369,29 @@ pub fn delete_keychain(keychain_path: &Path, verbose: bool) -> Result<(), MacosS
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_cert_to_tempfile_writes_decoded_bytes() {
+        use base64::Engine;
+        let fake_p12 = b"fake-p12-content";
+        let b64 = base64::engine::general_purpose::STANDARD.encode(fake_p12);
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let p12_path = decode_cert_to_tempfile(&b64, dir.path()).unwrap();
+
+        assert!(p12_path.exists());
+        assert_eq!(std::fs::read(&p12_path).unwrap(), fake_p12);
+    }
+
+    #[test]
+    fn decode_cert_to_tempfile_rejects_invalid_base64() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = decode_cert_to_tempfile("not-valid-base64!!!", dir.path());
+        assert!(result.is_err());
+    }
 }
