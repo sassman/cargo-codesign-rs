@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-03-09
+
+### Features
+
+- Add --ci-import-cert and --ci-cleanup-cert to macos subcommand ([#6](https://github.com/sassman/cargo-codesign-rs/pull/6))
+
+### Miscellaneous
+
+- Add MIT and Apache-2.0 license files
+- Add release binary assets pipeline
+- Bump libc 0.2.182 → 0.2.183
+- Add dependabot for nightly cargo and actions updates
+- Bump actions/checkout from 4 to 6 ([#3](https://github.com/sassman/cargo-codesign-rs/pull/3))
+- Bump actions/upload-pages-artifact from 3 to 4 ([#4](https://github.com/sassman/cargo-codesign-rs/pull/4))
+
+### Deps
+
+- Bump dialoguer, toml; replace rand with rand_core
+
+
+
 ## [0.1.0] - 2026-03-08
 
 ### Features
