@@ -40,6 +40,8 @@ Options:
   --identity <STRING>    Signing identity substring [default from config or "Developer ID Application"]
   --skip-notarize        Sign only, skip notarization
   --skip-staple          Skip stapling
+  --ci-import-cert       CI: import base64 certificate into ephemeral keychain
+  --ci-cleanup-cert      CI: delete ephemeral keychain from a previous import
 ```
 
 **Modes:**
