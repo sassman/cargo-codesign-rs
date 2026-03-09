@@ -1,0 +1,104 @@
+name: Release Binary Assets
+
+on:
+  push:
+    tags: ["v[0-9]+.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - uses: taiki-e/install-action@v2
+        if: ${{ matrix.cross }}
+        with:
+          tool: cross
+
+      - name: Build with cross
+        if: ${{ matrix.cross }}
+        run: cross build --locked --release --target ${{ matrix.target }}
+
+      - name: Smoke test (cross)
+        if: ${{ matrix.cross }}
+        run: cross run --locked --release --target ${{ matrix.target }} -- codesign --help
+
+      - name: Build with cargo
+        if: ${{ !matrix.cross }}
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Smoke test (cargo)
+        if: ${{ !matrix.cross && matrix.os != 'windows-latest' }}
+        run: cargo run --locked --release --target ${{ matrix.target }} -- codesign --help
+
+      - name: Smoke test (cargo, windows)
+        if: ${{ !matrix.cross && matrix.os == 'windows-latest' }}
+        run: cargo run --locked --release --target ${{ matrix.target }} -- codesign --help
+
+      - name: Create archive (unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        id: archive_unix
+        shell: bash
+        run: |
+          filename="cargo-codesign-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          tar -czvf "$filename" README.md LICENSE* -C "target/${{ matrix.target }}/release" cargo-codesign
+          shasum -a 256 "$filename" > "$filename.sha256"
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+
+      - name: Create archive (windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        id: archive_windows
+        shell: bash
+        run: |
+          filename="cargo-codesign-${{ github.ref_name }}-${{ matrix.target }}.zip"
+          7z a "$filename" README.md LICENSE* "./target/${{ matrix.target }}/release/cargo-codesign.exe"
+          sha256sum "$filename" > "$filename.sha256"
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release & upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: |
+            ${{ steps.archive_unix.outputs.filename }}
+            ${{ steps.archive_unix.outputs.filename }}.sha256
+            ${{ steps.archive_windows.outputs.filename }}
+            ${{ steps.archive_windows.outputs.filename }}.sha256
+          artifactContentType: application/octet-stream
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
