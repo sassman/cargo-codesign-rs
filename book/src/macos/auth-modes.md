@@ -44,8 +44,8 @@ entitlements = "entitlements.plist"
 auth = "api-key"
 
 [macos.env]
-certificate = "APPLE_CERTIFICATE"
-certificate-password = "APPLE_CERTIFICATE_PASSWORD"
+certificate = "MACOS_CERTIFICATE"
+certificate-password = "MACOS_CERTIFICATE_PASSWORD"
 notarization-key = "APPLE_NOTARIZATION_KEY"
 notarization-key-id = "APPLE_NOTARIZATION_KEY_ID"
 notarization-issuer = "APPLE_NOTARIZATION_ISSUER_ID"
@@ -64,8 +64,8 @@ xcrun notarytool submit artifact.dmg \
 The `APPLE_NOTARIZATION_KEY` env var contains the `.p8` file contents base64-encoded. cargo-codesign decodes it to a temp file, uses it, and deletes it.
 
 **Credentials needed:**
-- `APPLE_CERTIFICATE` — base64-encoded `.p12` certificate (for CI keychain import)
-- `APPLE_CERTIFICATE_PASSWORD` — password for the `.p12`
+- `MACOS_CERTIFICATE` — base64-encoded `.p12` certificate (for CI keychain import)
+- `MACOS_CERTIFICATE_PASSWORD` — password for the `.p12`
 - `APPLE_NOTARIZATION_KEY` — base64-encoded `.p8` API key
 - `APPLE_NOTARIZATION_KEY_ID` — the key ID from App Store Connect
 - `APPLE_NOTARIZATION_ISSUER_ID` — the issuer ID from App Store Connect

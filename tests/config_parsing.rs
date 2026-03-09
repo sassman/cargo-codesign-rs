@@ -7,8 +7,8 @@ entitlements = "entitlements.plist"
 auth = "api-key"
 
 [macos.env]
-certificate = "APPLE_CERTIFICATE"
-certificate-password = "APPLE_CERTIFICATE_PASSWORD"
+certificate = "MACOS_CERTIFICATE"
+certificate-password = "MACOS_CERTIFICATE_PASSWORD"
 notarization-key = "APPLE_NOTARIZATION_KEY"
 notarization-key-id = "APPLE_NOTARIZATION_KEY_ID"
 notarization-issuer = "APPLE_NOTARIZATION_ISSUER_ID"
@@ -18,7 +18,7 @@ notarization-issuer = "APPLE_NOTARIZATION_ISSUER_ID"
     let macos = config.macos.unwrap();
     assert_eq!(macos.identity, Some("Developer ID Application".to_string()));
     assert_eq!(macos.auth, cargo_codesign::config::MacosAuth::ApiKey);
-    assert_eq!(macos.env.certificate, Some("APPLE_CERTIFICATE".to_string()));
+    assert_eq!(macos.env.certificate, Some("MACOS_CERTIFICATE".to_string()));
 }
 
 #[test]
@@ -49,8 +49,8 @@ entitlements = "entitlements.plist"
 auth = "api-key"
 
 [macos.env]
-certificate = "APPLE_CERTIFICATE"
-certificate-password = "APPLE_CERTIFICATE_PASSWORD"
+certificate = "MACOS_CERTIFICATE"
+certificate-password = "MACOS_CERTIFICATE_PASSWORD"
 notarization-key = "APPLE_NOTARIZATION_KEY"
 notarization-key-id = "APPLE_NOTARIZATION_KEY_ID"
 notarization-issuer = "APPLE_NOTARIZATION_ISSUER_ID"

@@ -27,8 +27,8 @@ pub fn generate_sign_toml(selections: &InitSelections) -> String {
                 writeln!(out, "auth = \"api-key\"").unwrap();
                 writeln!(out).unwrap();
                 writeln!(out, "[macos.env]").unwrap();
-                writeln!(out, "certificate = \"APPLE_CERTIFICATE\"").unwrap();
-                writeln!(out, "certificate-password = \"APPLE_CERTIFICATE_PASSWORD\"").unwrap();
+                writeln!(out, "certificate = \"MACOS_CERTIFICATE\"").unwrap();
+                writeln!(out, "certificate-password = \"MACOS_CERTIFICATE_PASSWORD\"").unwrap();
                 writeln!(out, "notarization-key = \"APPLE_NOTARIZATION_KEY\"").unwrap();
                 writeln!(out, "notarization-key-id = \"APPLE_NOTARIZATION_KEY_ID\"").unwrap();
                 writeln!(
@@ -154,13 +154,13 @@ fn check_macos_creds(checks: &mut Vec<CredentialCheck>, auth: &MacosAuth) {
         MacosAuth::ApiKey => {
             check_cred(
                 checks,
-                "APPLE_CERTIFICATE",
+                "MACOS_CERTIFICATE",
                 "base64-encoded .p12 Developer ID certificate",
                 "macos/credentials.html",
             );
             check_cred(
                 checks,
-                "APPLE_CERTIFICATE_PASSWORD",
+                "MACOS_CERTIFICATE_PASSWORD",
                 "password for the .p12 certificate",
                 "macos/credentials.html",
             );

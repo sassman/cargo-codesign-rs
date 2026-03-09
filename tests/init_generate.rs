@@ -35,7 +35,7 @@ fn generate_macos_api_key_only() {
     };
     let toml_str = generate_sign_toml(&selections);
     assert!(toml_str.contains("auth = \"api-key\""));
-    assert!(toml_str.contains("certificate = \"APPLE_CERTIFICATE\""));
+    assert!(toml_str.contains("certificate = \"MACOS_CERTIFICATE\""));
     assert!(toml_str.contains("notarization-key = \"APPLE_NOTARIZATION_KEY\""));
 }
 

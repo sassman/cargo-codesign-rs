@@ -8,8 +8,8 @@ Configure these GitHub Secrets in your repository:
 
 | Secret | Description |
 |--------|-------------|
-| `APPLE_CERTIFICATE_BASE64` | Base64-encoded `.p12` certificate |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` |
+| `MACOS_CERTIFICATE_BASE64` | Base64-encoded `.p12` certificate |
+| `MACOS_CERTIFICATE_PASSWORD` | Password for the `.p12` |
 | `APPLE_ID` | Your Apple ID email (for `apple-id` auth) |
 | `APPLE_TEAM_ID` | Your 10-character team ID |
 | `APPLE_APP_PASSWORD` | App-specific password |
@@ -44,8 +44,8 @@ jobs:
       - name: Import certificate
         run: cargo codesign macos --ci-import-cert
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
 
       - name: Sign, package, and notarize
         run: cargo codesign macos --app "target/release/bundle/MyApp.app" --verbose
@@ -69,7 +69,7 @@ jobs:
 - **`--ci-import-cert`** reads the certificate env var names from `sign.toml`, base64-decodes the certificate, creates an ephemeral keychain, and imports it. No shell needed.
 - **`--ci-cleanup-cert`** deletes the ephemeral keychain created by `--ci-import-cert`. Runs `if: always()` so cleanup happens even if signing fails. Safe to call when no keychain exists (logs a warning, exits 0).
 - **`cargo codesign macos --app`** handles the full sign → DMG → notarize → staple chain.
-- The env var names (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`) come from your `sign.toml`. The GitHub secret names (e.g. `APPLE_CERTIFICATE_BASE64`) can be whatever you prefer.
+- The env var names (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`) come from your `sign.toml`. The GitHub secret names (e.g. `MACOS_CERTIFICATE_BASE64`) can be whatever you prefer.
 
 ## Composing with cargo-dist
 
@@ -83,8 +83,8 @@ sign:
     - name: Import certificate
       run: cargo codesign macos --ci-import-cert
       env:
-        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
     - name: Sign macOS artifacts
       run: cargo codesign macos --app "path/to/MyApp.app" --verbose
     - name: Cleanup
