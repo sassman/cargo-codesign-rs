@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-03-09
+
+### Miscellaneous
+
+- Add MIT and Apache-2.0 license files
+- Add release binary assets pipeline
+- Bump libc 0.2.182 → 0.2.183
+- Add dependabot for nightly cargo and actions updates
+
+### Deps
+
+- Bump dialoguer, toml; replace rand with rand_core
+
+
+
 ## [0.1.0] - 2026-03-08
 
 ### Features
