@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 20
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 20
+    commit-message:
+      prefix: "ci"
