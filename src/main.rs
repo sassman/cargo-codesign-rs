@@ -37,10 +37,10 @@ enum SignCommand {
     /// Sign, notarize, and staple macOS artifacts
     Macos {
         /// Path to .app bundle (triggers full sign+DMG+notarize+staple chain)
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["ci_import_cert", "ci_cleanup_cert"])]
         app: Option<std::path::PathBuf>,
         /// Path to existing DMG (codesign + notarize + staple)
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["ci_import_cert", "ci_cleanup_cert"])]
         dmg: Option<std::path::PathBuf>,
         /// Entitlements plist (overrides config)
         #[arg(long)]
@@ -54,6 +54,12 @@ enum SignCommand {
         /// Skip stapling
         #[arg(long)]
         skip_staple: bool,
+        /// CI: import base64-encoded certificate into ephemeral keychain
+        #[arg(long, conflicts_with_all = ["app", "dmg", "ci_cleanup_cert"])]
+        ci_import_cert: bool,
+        /// CI: delete ephemeral keychain from a previous --ci-import-cert
+        #[arg(long, conflicts_with_all = ["app", "dmg", "ci_import_cert"])]
+        ci_cleanup_cert: bool,
     },
     /// Sign a Windows executable via Azure Trusted Signing
     Windows {
@@ -132,16 +138,26 @@ fn main() {
             identity,
             skip_notarize,
             skip_staple,
-        } => cmd_macos(
-            args.config.as_deref(),
-            app.as_deref(),
-            dmg.as_deref(),
-            entitlements.as_deref(),
-            identity.as_deref(),
-            skip_notarize,
-            skip_staple,
-            args.verbose,
-        ),
+            ci_import_cert,
+            ci_cleanup_cert,
+        } => {
+            if ci_import_cert {
+                cmd_macos_ci_import(args.config.as_deref(), args.verbose);
+            } else if ci_cleanup_cert {
+                cmd_macos_ci_cleanup(args.verbose);
+            } else {
+                cmd_macos(
+                    args.config.as_deref(),
+                    app.as_deref(),
+                    dmg.as_deref(),
+                    entitlements.as_deref(),
+                    identity.as_deref(),
+                    skip_notarize,
+                    skip_staple,
+                    args.verbose,
+                );
+            }
+        }
         SignCommand::Windows { install_tools } => {
             cmd_windows(args.config.as_deref(), install_tools, args.verbose);
         }
@@ -407,6 +423,98 @@ fn macos_bare_binary_mode(identity: &str, verbose: bool) {
         eprintln!("  ✓ {} → {}", bin.name, dst.display());
     }
     eprintln!("✓ Done");
+}
+
+#[cfg(target_os = "macos")]
+fn cmd_macos_ci_import(config_path: Option<&std::path::Path>, verbose: bool) {
+    let _ = dotenvy::dotenv();
+
+    let (config, _resolved_path, warnings) = if let Some(path) = config_path {
+        cargo_codesign::config::resolve::resolve_config_from_path(path).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    } else {
+        cargo_codesign::config::resolve::resolve_config(None).unwrap_or_else(|e| {
+            eprintln!("✗ {e}");
+            std::process::exit(2);
+        })
+    };
+    for w in &warnings {
+        eprintln!("{w}");
+    }
+
+    let macos_config = config.macos.as_ref().unwrap_or_else(|| {
+        eprintln!("✗ No [macos] section in sign.toml");
+        std::process::exit(2);
+    });
+
+    let cert_b64 = resolve_env(macos_config.env.certificate.as_ref(), "certificate");
+    let cert_password = resolve_env(
+        macos_config.env.certificate_password.as_ref(),
+        "certificate-password",
+    );
+
+    let temp_dir = tempfile::TempDir::new().unwrap_or_else(|e| {
+        eprintln!("✗ Failed to create temp dir: {e}");
+        std::process::exit(1);
+    });
+
+    let p12_path =
+        cargo_codesign::platform::macos::decode_cert_to_tempfile(&cert_b64, temp_dir.path())
+            .unwrap_or_else(|e| {
+                eprintln!("✗ Failed to decode certificate: {e}");
+                std::process::exit(1);
+            });
+
+    let keychain_path =
+        cargo_codesign::platform::macos::import_certificate(&p12_path, &cert_password, verbose)
+            .unwrap_or_else(|e| {
+                eprintln!("✗ Certificate import failed: {e}");
+                std::process::exit(1);
+            });
+
+    let state_path = cargo_codesign::platform::macos::keychain_state_path();
+    let keychain_name = keychain_path.to_string_lossy();
+    cargo_codesign::platform::macos::save_keychain_state(&state_path, &keychain_name)
+        .unwrap_or_else(|e| {
+            eprintln!("✗ Failed to save keychain state: {e}");
+            std::process::exit(1);
+        });
+
+    eprintln!("✓ Certificate imported (keychain: {keychain_name})");
+}
+
+#[cfg(not(target_os = "macos"))]
+fn cmd_macos_ci_import(_config_path: Option<&std::path::Path>, _verbose: bool) {
+    eprintln!("✗ --ci-import-cert requires macOS");
+    std::process::exit(3);
+}
+
+#[cfg(target_os = "macos")]
+fn cmd_macos_ci_cleanup(verbose: bool) {
+    let state_path = cargo_codesign::platform::macos::keychain_state_path();
+
+    let Some(keychain_name) = cargo_codesign::platform::macos::load_keychain_state(&state_path)
+    else {
+        eprintln!("⚠ No keychain state found — nothing to clean up");
+        return;
+    };
+
+    let keychain_path = std::path::PathBuf::from(&keychain_name);
+    cargo_codesign::platform::macos::delete_keychain(&keychain_path, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Keychain cleanup failed: {e}");
+        std::process::exit(1);
+    });
+
+    let _ = std::fs::remove_file(&state_path);
+    eprintln!("✓ Keychain cleaned up ({keychain_name})");
+}
+
+#[cfg(not(target_os = "macos"))]
+fn cmd_macos_ci_cleanup(_verbose: bool) {
+    eprintln!("✗ --ci-cleanup-cert requires macOS");
+    std::process::exit(3);
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]

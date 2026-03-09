@@ -8,9 +8,8 @@ Configure these GitHub Secrets in your repository:
 
 | Secret | Description |
 |--------|-------------|
-| `APPLE_CERTIFICATE_BASE64` | Base64-encoded `.p12` certificate |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` |
-| `KEYCHAIN_PASSWORD` | Any random string (for the ephemeral CI keychain) |
+| `MACOS_CERTIFICATE_BASE64` | Base64-encoded `.p12` certificate |
+| `MACOS_CERTIFICATE_PASSWORD` | Password for the `.p12` |
 | `APPLE_ID` | Your Apple ID email (for `apple-id` auth) |
 | `APPLE_TEAM_ID` | Your 10-character team ID |
 | `APPLE_APP_PASSWORD` | App-specific password |
@@ -43,46 +42,21 @@ jobs:
         run: cargo install cargo-codesign
 
       - name: Import certificate
+        run: cargo codesign macos --ci-import-cert
         env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          if [ -z "${APPLE_CERTIFICATE_BASE64:-}" ]; then
-            echo "::warning::Code signing secrets not configured"
-            exit 0
-          fi
-
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-
-          security import certificate.p12 \
-            -k build.keychain \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign \
-            -T /usr/bin/security
-
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" build.keychain
-
-          rm certificate.p12
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
 
       - name: Sign, package, and notarize
+        run: cargo codesign macos --app "target/release/bundle/MyApp.app" --verbose
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          cargo codesign macos --app "target/release/bundle/MyApp.app" --verbose
 
-      - name: Clean up keychain
+      - name: Cleanup certificate
         if: always()
-        run: security delete-keychain build.keychain 2>/dev/null || true
+        run: cargo codesign macos --ci-cleanup-cert
 
       - name: Upload DMG
         uses: softprops/action-gh-release@v2
@@ -92,21 +66,28 @@ jobs:
 
 ## Key points
 
-- **Certificate import** happens before `cargo codesign` because CI runners don't have your Keychain. This step creates an ephemeral keychain, imports the certificate, and allows `codesign` to access it.
-- **`cargo codesign macos --app`** replaces what would otherwise be 3-4 separate shell scripts (codesign, create-dmg, notarize, staple).
-- **Keychain cleanup** runs `if: always()` to clean up even if signing fails.
-- **Graceful degradation**: if secrets aren't configured, the workflow skips signing and produces an unsigned build.
+- **`--ci-import-cert`** reads the certificate env var names from `sign.toml`, base64-decodes the certificate, creates an ephemeral keychain, and imports it. No shell needed.
+- **`--ci-cleanup-cert`** deletes the ephemeral keychain created by `--ci-import-cert`. Runs `if: always()` so cleanup happens even if signing fails. Safe to call when no keychain exists (logs a warning, exits 0).
+- **`cargo codesign macos --app`** handles the full sign → DMG → notarize → staple chain.
+- The env var names (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`) come from your `sign.toml`. The GitHub secret names (e.g. `MACOS_CERTIFICATE_BASE64`) can be whatever you prefer.
 
 ## Composing with cargo-dist
 
-If you use [cargo-dist](https://opensource.axo.dev/cargo-dist/) for releases, add the signing step after the build job:
+If you use [cargo-dist](https://opensource.axo.dev/cargo-dist/) for releases, add the signing steps after the build job:
 
 ```yaml
 sign:
   needs: [build]
   runs-on: macos-latest
   steps:
-    # ... certificate import ...
+    - name: Import certificate
+      run: cargo codesign macos --ci-import-cert
+      env:
+        MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
     - name: Sign macOS artifacts
       run: cargo codesign macos --app "path/to/MyApp.app" --verbose
+    - name: Cleanup
+      if: always()
+      run: cargo codesign macos --ci-cleanup-cert
 ```

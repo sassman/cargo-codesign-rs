@@ -216,6 +216,52 @@ pub fn staple(artifact: &Path, verbose: bool) -> Result<(), MacosSignError> {
     Ok(())
 }
 
+/// Decode a base64-encoded `.p12` certificate to a temp file.
+/// Returns the path to the temp `.p12` file.
+pub fn decode_cert_to_tempfile(
+    cert_base64: &str,
+    dir: &std::path::Path,
+) -> Result<PathBuf, MacosSignError> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(cert_base64.trim())
+        .map_err(|e| MacosSignError::KeychainFailed(format!("base64 decode failed: {e}")))?;
+
+    let p12_path = dir.join("cargo-codesign-cert.p12");
+    std::fs::write(&p12_path, &bytes)
+        .map_err(|e| MacosSignError::KeychainFailed(format!("failed to write temp .p12: {e}")))?;
+
+    Ok(p12_path)
+}
+
+const KEYCHAIN_STATE_FILE: &str = ".codesign-keychain";
+
+/// Derive the keychain state file path from the project root.
+pub fn keychain_state_path() -> PathBuf {
+    PathBuf::from("target").join(KEYCHAIN_STATE_FILE)
+}
+
+/// Persist keychain name so `--ci-cleanup-cert` can find it later.
+pub fn save_keychain_state(path: &Path, keychain_name: &str) -> Result<(), MacosSignError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            MacosSignError::KeychainFailed(format!("failed to create target dir: {e}"))
+        })?;
+    }
+    std::fs::write(path, keychain_name).map_err(|e| {
+        MacosSignError::KeychainFailed(format!("failed to write keychain state: {e}"))
+    })?;
+    Ok(())
+}
+
+/// Load the keychain name from a previous `--ci-import-cert` run.
+pub fn load_keychain_state(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
 /// Returns the keychain path for later cleanup.
 pub fn import_certificate(
@@ -351,4 +397,47 @@ pub fn delete_keychain(keychain_path: &Path, verbose: bool) -> Result<(), MacosS
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_cert_to_tempfile_writes_decoded_bytes() {
+        use base64::Engine;
+        let fake_p12 = b"fake-p12-content";
+        let b64 = base64::engine::general_purpose::STANDARD.encode(fake_p12);
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let p12_path = decode_cert_to_tempfile(&b64, dir.path()).unwrap();
+
+        assert!(p12_path.exists());
+        assert_eq!(std::fs::read(&p12_path).unwrap(), fake_p12);
+    }
+
+    #[test]
+    fn decode_cert_to_tempfile_rejects_invalid_base64() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = decode_cert_to_tempfile("not-valid-base64!!!", dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn keychain_state_roundtrip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state_path = dir.path().join(".codesign-keychain");
+
+        save_keychain_state(&state_path, "cargo-sign-12345.keychain").unwrap();
+        let loaded = load_keychain_state(&state_path).unwrap();
+        assert_eq!(loaded, "cargo-sign-12345.keychain");
+    }
+
+    #[test]
+    fn load_keychain_state_returns_none_when_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state_path = dir.path().join(".codesign-keychain");
+        let result = load_keychain_state(&state_path);
+        assert!(result.is_none());
+    }
 }
