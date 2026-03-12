@@ -94,13 +94,30 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
 }
 
 /// Create a DMG from a `.app` bundle using `hdiutil`.
+///
+/// Stages the `.app` alongside an `/Applications` symlink in a temporary
+/// directory so the resulting DMG shows the standard drag-to-install layout.
 pub fn create_dmg(
     app_path: &Path,
     dmg_path: &Path,
     volume_name: &str,
     verbose: bool,
 ) -> Result<(), MacosSignError> {
-    let app_str = app_path.to_string_lossy().to_string();
+    let staging_dir = tempfile::tempdir().map_err(MacosSignError::Io)?;
+
+    let app_name = app_path
+        .file_name()
+        .unwrap_or_else(|| std::ffi::OsStr::new("App.app"));
+    let staged_app = staging_dir.path().join(app_name);
+
+    // Copy the .app bundle into the staging directory
+    copy_dir_all(app_path, &staged_app)?;
+
+    // Create an /Applications symlink so the DMG shows the drag-to-install target
+    std::os::unix::fs::symlink("/Applications", staging_dir.path().join("Applications"))
+        .map_err(MacosSignError::Io)?;
+
+    let staging_str = staging_dir.path().to_string_lossy().to_string();
     let dmg_str = dmg_path.to_string_lossy().to_string();
 
     let output = run(
@@ -110,7 +127,7 @@ pub fn create_dmg(
             "-volname",
             volume_name,
             "-srcfolder",
-            &app_str,
+            &staging_str,
             "-ov",
             "-format",
             "UDZO",
@@ -120,6 +137,21 @@ pub fn create_dmg(
     )?;
     if !output.success {
         return Err(MacosSignError::DmgCreationFailed(output.stderr));
+    }
+    Ok(())
+}
+
+/// Recursively copy a directory tree.
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), MacosSignError> {
+    std::fs::create_dir_all(dst).map_err(MacosSignError::Io)?;
+    for entry in std::fs::read_dir(src).map_err(MacosSignError::Io)? {
+        let entry = entry.map_err(MacosSignError::Io)?;
+        let dst_path = dst.join(entry.file_name());
+        if entry.file_type().map_err(MacosSignError::Io)?.is_dir() {
+            copy_dir_all(&entry.path(), &dst_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dst_path).map_err(MacosSignError::Io)?;
+        }
     }
     Ok(())
 }
