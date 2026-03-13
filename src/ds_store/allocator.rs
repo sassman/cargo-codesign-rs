@@ -1,4 +1,4 @@
-//! Buddy allocator primitives — Bud1Prelude, Dsdb, AllocatorInfo.
+//! Buddy allocator primitives — `Bud1Prelude`, Dsdb, `AllocatorInfo`.
 
 use super::types::{BinaryDecode, BinaryEncode, DecodeError};
 
@@ -96,6 +96,8 @@ impl BinaryEncode for AllocatorInfo {
     fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(2048);
 
+        // DS_Store files have at most a handful of blocks; truncation is safe.
+        #[allow(clippy::cast_possible_truncation)]
         let num_offsets = self.block_addresses.len() as u32;
         buf.extend_from_slice(&num_offsets.to_be_bytes());
         buf.extend_from_slice(&0u32.to_be_bytes());
@@ -110,10 +112,14 @@ impl BinaryEncode for AllocatorInfo {
         }
 
         // TOC
+        // TOC entries are always a small fixed set; truncation is safe.
+        #[allow(clippy::cast_possible_truncation)]
         let toc_count = self.toc.len() as u32;
         buf.extend_from_slice(&toc_count.to_be_bytes());
         for (name, value) in &self.toc {
             let name_bytes = name.as_bytes();
+            // TOC key names (e.g., "DSDB") are always short ASCII; truncation is safe.
+            #[allow(clippy::cast_possible_truncation)]
             buf.push(name_bytes.len() as u8);
             buf.extend_from_slice(name_bytes);
             buf.extend_from_slice(&value.to_be_bytes());
@@ -182,7 +188,7 @@ impl BinaryDecode for Dsdb {
 }
 
 impl BinaryDecode for AllocatorInfo {
-    /// Decode allocator info: num_offsets, block address array (256 slots), TOC.
+    /// Decode allocator info: `num_offsets`, block address array (256 slots), TOC.
     fn decode(data: &[u8]) -> Result<Self, DecodeError> {
         // Minimum: 4 (num_offsets) + 4 (reserved) + 256*4 (addrs) + 4 (toc_count) = 1036
         if data.len() < 1036 {
@@ -192,16 +198,14 @@ impl BinaryDecode for AllocatorInfo {
             });
         }
 
-        let num_offsets =
-            u32::from_be_bytes(data[0..4].try_into().unwrap()) as usize;
+        let num_offsets = u32::from_be_bytes(data[0..4].try_into().unwrap()) as usize;
         // bytes 4..8: reserved zero — skip
 
         let offsets_start = 8;
         let mut block_addresses = Vec::with_capacity(num_offsets);
         for i in 0..num_offsets {
             let base = offsets_start + i * 4;
-            let addr =
-                u32::from_be_bytes(data[base..base + 4].try_into().unwrap());
+            let addr = u32::from_be_bytes(data[base..base + 4].try_into().unwrap());
             block_addresses.push(addr);
         }
 
@@ -213,8 +217,7 @@ impl BinaryDecode for AllocatorInfo {
                 got: data.len(),
             });
         }
-        let toc_count =
-            u32::from_be_bytes(data[toc_pos..toc_pos + 4].try_into().unwrap()) as usize;
+        let toc_count = u32::from_be_bytes(data[toc_pos..toc_pos + 4].try_into().unwrap()) as usize;
 
         let mut toc = Vec::with_capacity(toc_count);
         let mut pos = toc_pos + 4;
@@ -235,8 +238,7 @@ impl BinaryDecode for AllocatorInfo {
             }
             let key = String::from_utf8_lossy(&data[pos..pos + key_len]).into_owned();
             pos += key_len;
-            let value =
-                u32::from_be_bytes(data[pos..pos + 4].try_into().unwrap());
+            let value = u32::from_be_bytes(data[pos..pos + 4].try_into().unwrap());
             pos += 4;
             toc.push((key, value));
         }
@@ -347,8 +349,7 @@ mod tests {
         let bytes = info.encode();
         // TOC starts at offset 8 + 256*4 = 1032
         let toc_start = 1032;
-        let toc_count =
-            u32::from_be_bytes(bytes[toc_start..toc_start + 4].try_into().unwrap());
+        let toc_count = u32::from_be_bytes(bytes[toc_start..toc_start + 4].try_into().unwrap());
         assert_eq!(toc_count, 2);
 
         // First entry: len=4, "DSDB", value=1
@@ -502,10 +503,7 @@ mod tests {
     fn allocator_info_roundtrip_multi_toc() {
         let original = AllocatorInfo {
             block_addresses: vec![0x1234],
-            toc: vec![
-                ("DSDB".to_string(), 1),
-                ("free".to_string(), 99),
-            ],
+            toc: vec![("DSDB".to_string(), 1), ("free".to_string(), 99)],
         };
         let bytes = original.encode();
         let decoded = AllocatorInfo::decode(&bytes).unwrap();

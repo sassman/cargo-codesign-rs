@@ -193,10 +193,7 @@ fn create_dmg_styled(
     std::fs::copy(&bg_path, bg_dir.join(bg_canonical)).map_err(MacosSignError::Io)?;
 
     // Generate .DS_Store with icon positions and window properties
-    let ds_store = crate::ds_store::DsStoreBuilder::new(
-            app_name.to_string_lossy(),
-            volume_name,
-        )
+    let ds_store = crate::ds_store::DsStoreBuilder::new(app_name.to_string_lossy(), volume_name)
         .window_size(cfg.window_size[0], cfg.window_size[1])
         .icon_size(cfg.icon_size)
         .app_position(cfg.app_position[0], cfg.app_position[1])

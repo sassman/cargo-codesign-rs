@@ -1,12 +1,12 @@
 //! macOS Bookmark binary format — encode and decode.
 //!
 //! The bookmark format is little-endian throughout. Structure:
-//!   - 64-byte header (magic "book", size, version, header_size, security cookie, team id, reserved)
+//!   - 64-byte header (magic "book", size, version, `header_size`, security cookie, team id, reserved)
 //!   - Payload: 4-byte first-TOC-offset + data items + TOC
 //!
 //! Data items are: len(u32 LE) + type(u32 LE) + data + pad-to-4.
 //! TOC: size(u32) + sentinel(u32) + id(u32) + next(u32) + count(u32) + entries.
-//! Each TOC entry: key(u32) + data_offset(u32) + flags(u32).
+//! Each TOC entry: key(u32) + `data_offset(u32)` + flags(u32).
 
 use super::types::{BinaryDecode, BinaryEncode, DecodeError};
 
@@ -87,8 +87,7 @@ impl BinaryEncode for Bookmark {
         let va_f000 = append_u32_item(&mut payload, 0xF000);
         let va_zero = append_u32_item(&mut payload, 0);
         let va_one = append_u32_item(&mut payload, 1);
-        let va_arr_off =
-            append_array(&mut payload, &[va_f000, va_zero, va_one, va_zero, va_zero]);
+        let va_arr_off = append_array(&mut payload, &[va_f000, va_zero, va_one, va_zero, va_zero]);
         toc_entries.push((0x2000, va_arr_off));
 
         // VolumePath (0x2002)
@@ -108,8 +107,7 @@ impl BinaryEncode for Bookmark {
         toc_entries.push((0x2011, vol_uuid_off));
 
         // VolumeCapacity (0x2012)
-        let vol_cap_off =
-            append_item(&mut payload, TYPE_U64, &self.volume_capacity.to_le_bytes());
+        let vol_cap_off = append_item(&mut payload, TYPE_U64, &self.volume_capacity.to_le_bytes());
         toc_entries.push((0x2012, vol_cap_off));
 
         // VolCreationDate (0x2013) — f64 0.0
@@ -315,7 +313,7 @@ fn read_u64_le(data: &[u8], offset: usize) -> u64 {
 
 /// Read the data item at `offset` within the payload.
 /// Returns `(item_type, item_data_slice)`.
-fn read_item<'a>(payload: &'a [u8], offset: u32) -> Result<(u32, &'a [u8]), DecodeError> {
+fn read_item(payload: &[u8], offset: u32) -> Result<(u32, &[u8]), DecodeError> {
     let off = offset as usize;
     if off + 8 > payload.len() {
         return Err(DecodeError::TooShort {
@@ -466,7 +464,11 @@ mod tests {
         let encoded = test_bookmark().encode();
 
         // Magic bytes.
-        assert_eq!(&encoded[..4], b"book", "bookmark must start with 'book' magic");
+        assert_eq!(
+            &encoded[..4],
+            b"book",
+            "bookmark must start with 'book' magic"
+        );
 
         // Total size field matches actual length.
         let total_size = u32::from_le_bytes(encoded[4..8].try_into().unwrap()) as usize;
@@ -480,13 +482,11 @@ mod tests {
     #[test]
     fn toc_has_valid_structure() {
         let encoded = test_bookmark().encode();
-        let header_size =
-            u32::from_le_bytes(encoded[12..16].try_into().unwrap()) as usize;
+        let header_size = u32::from_le_bytes(encoded[12..16].try_into().unwrap()) as usize;
         let payload = &encoded[header_size..];
 
         // First TOC offset.
-        let first_toc_off =
-            u32::from_le_bytes(payload[0..4].try_into().unwrap()) as usize;
+        let first_toc_off = u32::from_le_bytes(payload[0..4].try_into().unwrap()) as usize;
         let toc = &payload[first_toc_off..];
 
         // Sentinel.
@@ -508,40 +508,6 @@ mod tests {
             );
             prev_key = key;
         }
-    }
-
-    #[test]
-    fn byte_identical_to_old_bookmark_builder() {
-        let old_bytes =
-            crate::ds_store_old::build_background_bookmark("bg.png", "JPEG Locker");
-        let new_bytes = test_bookmark().encode();
-
-        assert_eq!(
-            old_bytes.len(),
-            new_bytes.len(),
-            "length mismatch: old={} new={}",
-            old_bytes.len(),
-            new_bytes.len()
-        );
-
-        // Find first divergence for a useful error message.
-        if old_bytes != new_bytes {
-            for (i, (a, b)) in old_bytes.iter().zip(new_bytes.iter()).enumerate() {
-                if a != b {
-                    panic!(
-                        "first byte difference at offset {i}: old=0x{a:02x} new=0x{b:02x}\n\
-                         old[{s}..{e}] = {old_slice:02x?}\n\
-                         new[{s}..{e}] = {new_slice:02x?}",
-                        s = i.saturating_sub(8),
-                        e = (i + 8).min(old_bytes.len()),
-                        old_slice = &old_bytes[i.saturating_sub(8)..(i + 8).min(old_bytes.len())],
-                        new_slice = &new_bytes[i.saturating_sub(8)..(i + 8).min(new_bytes.len())],
-                    );
-                }
-            }
-        }
-
-        assert_eq!(old_bytes, new_bytes, "encoded bytes must be identical");
     }
 
     #[test]

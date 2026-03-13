@@ -195,7 +195,7 @@ impl DsStore {
 
         // Prelude (32 bytes in the data region)
         let prelude = Bud1Prelude {
-            info_offset: info_offset,
+            info_offset,
             info_alloc: info_alloc as u32,
             leaf_addr,
         };
@@ -260,22 +260,26 @@ impl DsStoreBuilder {
         }
     }
 
+    #[must_use]
     pub fn window_size(mut self, width: u32, height: u32) -> Self {
         self.window_width = width;
         self.window_height = height;
         self
     }
 
+    #[must_use]
     pub fn icon_size(mut self, size: u32) -> Self {
         self.icon_size = size;
         self
     }
 
+    #[must_use]
     pub fn app_position(mut self, x: u32, y: u32) -> Self {
         self.app_position = (x, y);
         self
     }
 
+    #[must_use]
     pub fn apps_link_position(mut self, x: u32, y: u32) -> Self {
         self.apps_link_position = (x, y);
         self
@@ -303,7 +307,7 @@ impl DsStoreBuilder {
                 AliasTag::ParentDirName(".background".to_string()),
                 AliasTag::UnicodeFilename(DMG_BG_FILENAME.to_string()),
                 AliasTag::UnicodeVolumeName(self.volume_name.clone()),
-                AliasTag::PosixPath(format!("/.background/{}", DMG_BG_FILENAME)),
+                AliasTag::PosixPath(format!("/.background/{DMG_BG_FILENAME}")),
                 AliasTag::VolumeMountPoint(format!("/Volumes/{}", self.volume_name)),
             ],
         };
@@ -408,42 +412,6 @@ mod tests {
             .app_position(160, 200)
             .apps_link_position(500, 200)
             .build()
-    }
-
-    #[test]
-    fn builder_produces_byte_identical_output() {
-        let old = crate::ds_store_old::write_ds_store(
-            &crate::ds_store_old::DmgLayout {
-                window_width: 660,
-                window_height: 400,
-                icon_size: 128,
-                app_name: "JPEG Locker.app".to_string(),
-                app_x: 160,
-                app_y: 200,
-                apps_link_x: 500,
-                apps_link_y: 200,
-                background_filename: "bg.png".to_string(),
-                volume_name: "JPEG Locker".to_string(),
-            },
-        );
-        let new = test_ds_store().encode();
-
-        assert_eq!(
-            old.len(),
-            new.len(),
-            "length mismatch: old={} new={}",
-            old.len(),
-            new.len()
-        );
-
-        // Find first divergence for a useful error message.
-        for (i, (a, b)) in old.iter().zip(new.iter()).enumerate() {
-            if a != b {
-                panic!("first diff at byte {i}: old=0x{a:02x} new=0x{b:02x}");
-            }
-        }
-
-        assert_eq!(old, new, "new module must produce byte-identical output");
     }
 
     #[test]

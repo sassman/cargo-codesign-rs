@@ -1,4 +1,4 @@
-//! BinaryDecode implementations for DS_Store record types.
+//! `BinaryDecode` implementations for `DS_Store` record types.
 
 use super::alias::AliasV2;
 use super::bookmark::Bookmark;
@@ -6,6 +6,9 @@ use super::types::{
     BinaryDecode, DecodeError, DsRecord, IconLocation, IconViewSettings, RecordValue,
     WindowSettings,
 };
+
+/// Origin `(x, y)` and size `(w, h)` parsed from a `WindowBounds` string.
+type OriginAndSize = ((u32, u32), (u32, u32));
 
 // ---------------------------------------------------------------------------
 // IconLocation
@@ -77,28 +80,28 @@ impl BinaryDecode for WindowSettings {
 }
 
 /// Parse `"{{x, y}, {w, h}}"` into `((x, y), (w, h))`.
-fn parse_window_bounds(s: &str) -> Result<((u32, u32), (u32, u32)), DecodeError> {
+fn parse_window_bounds(input: &str) -> Result<OriginAndSize, DecodeError> {
     // Strip outer braces and whitespace, then parse the four integers.
-    let stripped = s
-        .replace('{', "")
-        .replace('}', "");
+    let stripped = input.replace(['{', '}'], "");
     let parts: Vec<&str> = stripped.split(',').map(str::trim).collect();
     if parts.len() != 4 {
         return Err(DecodeError::Other(format!(
-            "WindowBounds has {n} components, expected 4: {s}",
+            "WindowBounds has {n} components, expected 4: {input}",
             n = parts.len()
         )));
     }
-    let x = parse_u32(parts[0], s)?;
-    let y = parse_u32(parts[1], s)?;
-    let w = parse_u32(parts[2], s)?;
-    let h = parse_u32(parts[3], s)?;
-    Ok(((x, y), (w, h)))
+    let origin_x = parse_u32(parts[0], input)?;
+    let origin_y = parse_u32(parts[1], input)?;
+    let width = parse_u32(parts[2], input)?;
+    let height = parse_u32(parts[3], input)?;
+    Ok(((origin_x, origin_y), (width, height)))
 }
 
 fn parse_u32(s: &str, context: &str) -> Result<u32, DecodeError> {
     s.parse::<u32>().map_err(|e| {
-        DecodeError::Other(format!("invalid integer '{s}' in WindowBounds '{context}': {e}"))
+        DecodeError::Other(format!(
+            "invalid integer '{s}' in WindowBounds '{context}': {e}"
+        ))
     })
 }
 
@@ -125,10 +128,9 @@ impl BinaryDecode for IconViewSettings {
         let grid_spacing = plist_real_or_int(&dict, "gridSpacing").unwrap_or(100.0);
         let grid_offset_x = plist_real_or_int(&dict, "gridOffsetX").unwrap_or(0.0);
         let grid_offset_y = plist_real_or_int(&dict, "gridOffsetY").unwrap_or(0.0);
-        let view_options_version = plist_real_or_int(&dict, "viewOptionsVersion")
-            .unwrap_or(1.0) as u32;
-        let background_type = plist_real_or_int(&dict, "backgroundType")
-            .unwrap_or(1.0) as u32;
+        let view_options_version =
+            plist_real_or_int(&dict, "viewOptionsVersion").unwrap_or(1.0) as u32;
+        let background_type = plist_real_or_int(&dict, "backgroundType").unwrap_or(1.0) as u32;
 
         let bg_red = plist_real_or_int(&dict, "backgroundColorRed").unwrap_or(1.0);
         let bg_green = plist_real_or_int(&dict, "backgroundColorGreen").unwrap_or(1.0);
@@ -167,6 +169,10 @@ fn plist_real_or_int(dict: &plist::Dictionary, key: &str) -> Result<f64, DecodeE
     match val {
         plist::Value::Real(r) => Ok(*r),
         plist::Value::Integer(i) => {
+            // Plist integers are i64; converting to f64 may lose precision for
+            // values > 2^52, but all DS_Store numeric fields are small icon/grid
+            // sizes that fit comfortably in f64's mantissa.
+            #[allow(clippy::cast_precision_loss)]
             i.as_signed()
                 .map(|v| v as f64)
                 .ok_or_else(|| DecodeError::Other(format!("integer overflow in plist key '{key}'")))
@@ -193,7 +199,7 @@ impl DsRecord {
     ///
     /// Returns the decoded record and the total number of bytes consumed,
     /// so the caller can advance through sequentially packed records.
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
     pub(crate) fn decode_one(data: &[u8]) -> Result<(Self, usize), DecodeError> {
         let mut pos = 0;
 

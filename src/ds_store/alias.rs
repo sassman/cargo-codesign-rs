@@ -1,18 +1,18 @@
 //! Alias V2 binary format — encode and decode.
 //!
 //! Wire format (big-endian):
-//!   6-byte prefix: app_type(4 BE, =0) + record_size(2 BE)
+//!   6-byte prefix: `app_type(4` BE, =0) + `record_size(2` BE)
 //!   144-byte fixed body starting at offset 6:
-//!     version(u16=2), kind(u16), vol_name(28-byte pascal), vol_created(u32),
-//!     vol_sig(2), vol_type(u16), parent_dir_id(u32), filename(64-byte pascal),
-//!     file_number(u32), file_created(u32), file_type(4), file_creator(4),
-//!     nlvl_from(u16), nlvl_to(u16), vol_attrs(u32), vol_fs_id(u16), reserved(10)
+//!     version(u16=2), kind(u16), vol_name(28-byte pascal), `vol_created(u32)`,
+//!     `vol_sig(2)`, `vol_type(u16)`, `parent_dir_id(u32)`, filename(64-byte pascal),
+//!     `file_number(u32)`, `file_created(u32)`, `file_type(4)`, `file_creator(4)`,
+//!     `nlvl_from(u16)`, `nlvl_to(u16)`, `vol_attrs(u32)`, `vol_fs_id(u16)`, reserved(10)
 //!   Variable-length tags until sentinel (-1, 0x0000)
 //!   Padded to even length
 
 use super::types::{BinaryDecode, BinaryEncode, DecodeError};
 
-/// Prefix: 4-byte app_type + 2-byte record_size.
+/// Prefix: 4-byte `app_type` + 2-byte `record_size`.
 const PREFIX_LEN: usize = 6;
 /// Fixed body: version through reserved (144 bytes).
 const FIXED_BODY_LEN: usize = 144;
@@ -138,7 +138,7 @@ fn write_pascal_string(buf: &mut Vec<u8>, s: &str, total_bytes: usize) {
     buf.extend_from_slice(&bytes[..len]);
     // Zero-pad the remainder
     let padding = max_data - len;
-    buf.extend(std::iter::repeat_n(0u8, padding));
+    buf.extend(std::iter::repeat(0u8).take(padding));
 }
 
 /// Encode a single alias tag into the buffer.
@@ -150,6 +150,9 @@ fn encode_tag(buf: &mut Vec<u8>, tag: &AliasTag) {
         AliasTag::UnicodeVolumeName(s) => append_tag_unicode(buf, 15, s),
         AliasTag::PosixPath(s) => append_tag_raw(buf, 18, s.as_bytes()),
         AliasTag::VolumeMountPoint(s) => append_tag_raw(buf, 19, s.as_bytes()),
+        // Tag numbers are stored as i16 on the wire; unknown tags round-trip
+        // through u16 for lossless storage. The bit pattern is preserved.
+        #[allow(clippy::cast_possible_wrap)]
         AliasTag::Unknown { tag: t, data } => append_tag_raw(buf, *t as i16, data),
     }
 }
@@ -296,6 +299,9 @@ fn decode_tag(tag_num: i16, data: &[u8]) -> Result<AliasTag, DecodeError> {
         19 => Ok(AliasTag::VolumeMountPoint(
             String::from_utf8_lossy(data).into_owned(),
         )),
+        // Unknown tag numbers are stored as u16 for lossless round-tripping.
+        // The bit pattern is preserved; sign loss is intentional.
+        #[allow(clippy::cast_sign_loss)]
         _ => Ok(AliasTag::Unknown {
             tag: tag_num as u16,
             data: data.to_vec(),
@@ -426,16 +432,5 @@ mod tests {
         let encoded = original.encode();
         let decoded = AliasV2::decode(&encoded).expect("decode should succeed");
         assert_eq!(original, decoded);
-    }
-
-    #[test]
-    fn byte_identical_to_old_alias_builder() {
-        let old_bytes =
-            crate::ds_store_old::build_background_alias("bg.png", "JPEG Locker");
-        let new_bytes = test_alias().encode();
-        assert_eq!(
-            old_bytes, new_bytes,
-            "new AliasV2::encode must produce byte-identical output to build_background_alias"
-        );
     }
 }

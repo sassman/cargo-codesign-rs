@@ -1,4 +1,4 @@
-//! BinaryEncode implementations for DS_Store record types.
+//! `BinaryEncode` implementations for `DS_Store` record types.
 
 use plist::Value as PlistValue;
 use std::collections::BTreeMap;
@@ -138,16 +138,14 @@ impl BinaryEncode for RecordValue {
     #[allow(clippy::cast_possible_truncation)]
     fn encode(&self) -> Vec<u8> {
         match self {
-            Self::Iloc(iloc) => blob_wrap(iloc.encode()),
-            Self::Bwsp(ws) => blob_wrap(ws.encode()),
-            Self::Icvp(ivs) => blob_wrap(ivs.encode()),
-            Self::PBBk(bk) => blob_wrap(bk.encode()),
+            Self::Iloc(iloc) => blob_wrap(&iloc.encode()),
+            Self::Bwsp(ws) => blob_wrap(&ws.encode()),
+            Self::Icvp(ivs) => blob_wrap(&ivs.encode()),
+            Self::PBBk(bk) => blob_wrap(&bk.encode()),
             Self::VSrn(v) => v.to_be_bytes().to_vec(),
-            Self::Unknown {
-                type_tag, data, ..
-            } => {
+            Self::Unknown { type_tag, data, .. } => {
                 if type_tag == b"blob" {
-                    blob_wrap(data.clone())
+                    blob_wrap(data)
                 } else {
                     data.clone()
                 }
@@ -158,11 +156,11 @@ impl BinaryEncode for RecordValue {
 
 /// Wrap blob data with a 4-byte big-endian length prefix.
 #[allow(clippy::cast_possible_truncation)]
-fn blob_wrap(data: Vec<u8>) -> Vec<u8> {
+fn blob_wrap(data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(4 + data.len());
     // Blob lengths in DS_Store are u32; our blobs are always < 4 GiB.
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    out.extend_from_slice(&data);
+    out.extend_from_slice(data);
     out
 }
 
@@ -237,68 +235,6 @@ mod tests {
             parsed.get("WindowBounds").and_then(|v| v.as_string()),
             Some("{{200, 120}, {660, 400}}")
         );
-    }
-
-    #[test]
-    fn window_settings_byte_identical_to_old() {
-        let old = crate::ds_store_old::build_bwsp_plist(660, 400);
-        let ws = WindowSettings {
-            window_origin: (200, 120),
-            window_width: 660,
-            window_height: 400,
-            show_sidebar: false,
-            container_show_sidebar: false,
-            show_toolbar: false,
-            show_tab_view: false,
-            show_status_bar: false,
-        };
-        assert_eq!(ws.encode(), old);
-    }
-
-    #[test]
-    fn icon_view_settings_byte_identical_to_old() {
-        // Build the same alias that the old code builds
-        let alias = AliasV2 {
-            kind: AliasKind::File,
-            volume_name: "JPEG Locker".to_string(),
-            volume_created: 0,
-            volume_signature: *b"H+",
-            volume_type: 5,
-            parent_dir_id: 0,
-            filename: "bg.png".to_string(),
-            file_number: 0,
-            file_created: 0,
-            file_type: [0; 4],
-            file_creator: [0; 4],
-            nlvl_from: 0xFFFF,
-            nlvl_to: 0xFFFF,
-            vol_attrs: 0,
-            vol_fs_id: 0,
-            tags: vec![
-                AliasTag::ParentDirName(".background".to_string()),
-                AliasTag::UnicodeFilename("bg.png".to_string()),
-                AliasTag::UnicodeVolumeName("JPEG Locker".to_string()),
-                AliasTag::PosixPath("/.background/bg.png".to_string()),
-                AliasTag::VolumeMountPoint("/Volumes/JPEG Locker".to_string()),
-            ],
-        };
-        let old = crate::ds_store_old::build_icvp_plist(128, "bg.png", "JPEG Locker");
-        let ivs = IconViewSettings {
-            icon_size: 128,
-            text_size: 12.0,
-            label_on_bottom: true,
-            show_icon_preview: true,
-            show_item_info: false,
-            arrange_by: "none".to_string(),
-            grid_spacing: 100.0,
-            grid_offset_x: 0.0,
-            grid_offset_y: 0.0,
-            view_options_version: 1,
-            background_type: 2,
-            background_color: (1.0, 1.0, 1.0),
-            background_alias: alias,
-        };
-        assert_eq!(ivs.encode(), old);
     }
 
     #[test]

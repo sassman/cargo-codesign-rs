@@ -1,4 +1,4 @@
-//! Type definitions, traits, and error types for the DS_Store binary format.
+//! Type definitions, traits, and error types for the `DS_Store` binary format.
 
 use std::fmt;
 
@@ -20,8 +20,15 @@ pub(crate) trait BinaryDecode: Sized {
 
 #[derive(Debug, Clone)]
 pub(crate) enum DecodeError {
-    TooShort { expected: usize, got: usize },
-    InvalidMagic { expected: &'static [u8], got: Vec<u8> },
+    TooShort {
+        expected: usize,
+        got: usize,
+    },
+    InvalidMagic {
+        expected: &'static [u8],
+        got: Vec<u8>,
+    },
+    #[allow(dead_code)]
     InvalidRecordCode([u8; 4]),
     InvalidTypeTag([u8; 4]),
     Plist(String),
@@ -98,6 +105,9 @@ pub(crate) struct IconLocation {
     pub(crate) y: u32,
 }
 
+// These bools model Finder's window preference flags — there is no meaningful
+// grouping that would reduce the count without adding artificial abstraction.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct WindowSettings {
     pub(crate) window_origin: (u32, u32),
@@ -128,5 +138,5 @@ pub(crate) struct IconViewSettings {
 }
 
 // Forward-declare types that live in other files but are needed here
-pub(crate) use super::alias::{AliasKind, AliasTag, AliasV2};
+pub(crate) use super::alias::AliasV2;
 pub(crate) use super::bookmark::Bookmark;
