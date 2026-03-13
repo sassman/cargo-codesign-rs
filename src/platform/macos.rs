@@ -164,7 +164,7 @@ fn create_dmg_plain(
 /// staging directory, then create a compressed UDZO DMG in one step.
 ///
 /// This avoids the flaky mount → `AppleScript` → detach → convert pipeline
-/// by writing the `.DS_Store` directly with [`crate::ds_store_old::write_ds_store`].
+/// by writing the `.DS_Store` directly with [`crate::ds_store::DsStoreBuilder`].
 fn create_dmg_styled(
     staging_str: &str,
     dmg_str: &str,
@@ -185,7 +185,7 @@ fn create_dmg_styled(
     }
     // Always copy the background image as the canonical name so the alias
     // and bookmark inside the .DS_Store match the file on disk exactly.
-    let bg_canonical = crate::ds_store_old::DMG_BG_FILENAME;
+    let bg_canonical = crate::ds_store::DMG_BG_FILENAME;
 
     let staging = PathBuf::from(staging_str);
     let bg_dir = staging.join(".background");
@@ -193,19 +193,16 @@ fn create_dmg_styled(
     std::fs::copy(&bg_path, bg_dir.join(bg_canonical)).map_err(MacosSignError::Io)?;
 
     // Generate .DS_Store with icon positions and window properties
-    let layout = crate::ds_store_old::DmgLayout {
-        window_width: cfg.window_size[0],
-        window_height: cfg.window_size[1],
-        icon_size: cfg.icon_size,
-        app_name: app_name.to_string_lossy().into_owned(),
-        app_x: cfg.app_position[0],
-        app_y: cfg.app_position[1],
-        apps_link_x: cfg.app_drop_link[0],
-        apps_link_y: cfg.app_drop_link[1],
-        background_filename: bg_canonical.to_string(),
-        volume_name: volume_name.to_string(),
-    };
-    let ds_store_bytes = crate::ds_store_old::write_ds_store(&layout);
+    let ds_store = crate::ds_store::DsStoreBuilder::new(
+            app_name.to_string_lossy(),
+            volume_name,
+        )
+        .window_size(cfg.window_size[0], cfg.window_size[1])
+        .icon_size(cfg.icon_size)
+        .app_position(cfg.app_position[0], cfg.app_position[1])
+        .apps_link_position(cfg.app_drop_link[0], cfg.app_drop_link[1])
+        .build();
+    let ds_store_bytes = ds_store.encode();
     std::fs::write(staging.join(".DS_Store"), &ds_store_bytes).map_err(MacosSignError::Io)?;
 
     if verbose {
