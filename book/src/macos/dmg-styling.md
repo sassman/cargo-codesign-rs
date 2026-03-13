@@ -2,6 +2,8 @@
 
 Create polished drag-to-install DMG images with a background image and positioned icons.
 
+![Styled DMG installer example](assets/dmg-styled-example.png)
+
 ## Before and after
 
 Without `[macos.dmg]` config, the DMG opens with Finder's default layout — no background, no icon positioning, no visual guidance for the user.
