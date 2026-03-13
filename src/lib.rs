@@ -1,6 +1,7 @@
 pub mod ci;
 pub mod config;
 pub mod discovery;
+pub mod ds_store;
 pub mod init;
 pub mod keygen;
 pub mod manifest;

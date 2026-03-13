@@ -29,6 +29,17 @@ pub struct MacosConfig {
     pub entitlements: Option<PathBuf>,
     pub auth: MacosAuth,
     pub env: MacosEnvConfig,
+    pub dmg: Option<DmgConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct DmgConfig {
+    pub background: PathBuf,
+    pub window_size: [u32; 2],
+    pub icon_size: u32,
+    pub app_position: [u32; 2],
+    pub app_drop_link: [u32; 2],
 }
 
 #[derive(Debug, Deserialize, Default)]
