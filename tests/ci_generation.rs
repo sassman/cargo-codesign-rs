@@ -13,6 +13,7 @@ fn macos_apple_id_config() -> SignConfig {
                 app_password: Some("APPLE_APP_PASSWORD".to_string()),
                 ..Default::default()
             },
+            dmg: None,
         }),
         ..Default::default()
     }
