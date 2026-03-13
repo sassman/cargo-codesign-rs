@@ -26,6 +26,102 @@ pub struct DsStore {
 }
 
 impl DsStore {
+    /// Decode a `.DS_Store` binary file into a `DsStore`.
+    ///
+    /// The file must start with a 4-byte header (`0x00000001`), followed by
+    /// the Bud1 data region containing the allocator info, DSDB, and leaf node.
+    #[allow(clippy::cast_possible_truncation, dead_code)]
+    pub(crate) fn decode(data: &[u8]) -> Result<Self, DecodeError> {
+        // Minimum: 4-byte file header + 32-byte Bud1 prelude
+        if data.len() < 36 {
+            return Err(DecodeError::TooShort {
+                expected: 36,
+                got: data.len(),
+            });
+        }
+
+        // Verify file header
+        let header = u32::from_be_bytes(data[0..4].try_into().unwrap());
+        if header != 1 {
+            return Err(DecodeError::InvalidMagic {
+                expected: b"\x00\x00\x00\x01",
+                got: data[0..4].to_vec(),
+            });
+        }
+
+        // Parse Bud1 prelude (starts at byte 4, the data region)
+        let prelude = Bud1Prelude::decode(&data[4..36])?;
+
+        // Parse allocator info at data_region + info_offset
+        let info_pos = 4 + prelude.info_offset as usize;
+        if info_pos >= data.len() {
+            return Err(DecodeError::TooShort {
+                expected: info_pos + 1,
+                got: data.len(),
+            });
+        }
+        let alloc_info = AllocatorInfo::decode(&data[info_pos..])?;
+
+        // Find DSDB block index from the TOC
+        let dsdb_block_idx = alloc_info
+            .toc
+            .iter()
+            .find(|(name, _)| name == "DSDB")
+            .map(|(_, idx)| *idx as usize)
+            .ok_or_else(|| DecodeError::Other("no DSDB entry in TOC".into()))?;
+
+        if dsdb_block_idx >= alloc_info.block_addresses.len() {
+            return Err(DecodeError::Other(format!(
+                "DSDB block index {dsdb_block_idx} out of range (have {} blocks)",
+                alloc_info.block_addresses.len()
+            )));
+        }
+
+        // Compute DSDB block offset: strip size class bits, add 4 for file header
+        let dsdb_addr = alloc_info.block_addresses[dsdb_block_idx];
+        let dsdb_pos = (dsdb_addr & !0x1f) as usize + 4;
+        if dsdb_pos >= data.len() {
+            return Err(DecodeError::TooShort {
+                expected: dsdb_pos + 20,
+                got: data.len(),
+            });
+        }
+        let dsdb = Dsdb::decode(&data[dsdb_pos..])?;
+
+        // Compute leaf node offset from the root_node block address
+        let root_node = dsdb.root_node as usize;
+        if root_node >= alloc_info.block_addresses.len() {
+            return Err(DecodeError::Other(format!(
+                "root_node block index {root_node} out of range (have {} blocks)",
+                alloc_info.block_addresses.len()
+            )));
+        }
+        let leaf_addr = alloc_info.block_addresses[root_node];
+        let leaf_pos = (leaf_addr & !0x1f) as usize + 4;
+
+        // Leaf node: skip pair_count (4 bytes), read record_count (4 bytes)
+        if data.len() < leaf_pos + 8 {
+            return Err(DecodeError::TooShort {
+                expected: leaf_pos + 8,
+                got: data.len(),
+            });
+        }
+        // pair_count at leaf_pos..leaf_pos+4 (0 for a leaf — we skip it)
+        let record_count =
+            u32::from_be_bytes(data[leaf_pos + 4..leaf_pos + 8].try_into().unwrap()) as usize;
+
+        // Decode records sequentially
+        let mut pos = leaf_pos + 8;
+        let mut records = Vec::with_capacity(record_count);
+        for _ in 0..record_count {
+            let (record, consumed) = DsRecord::decode_one(&data[pos..])?;
+            records.push(record);
+            pos += consumed;
+        }
+
+        Ok(DsStore { records })
+    }
+
     /// Encode the `DsStore` into a complete `.DS_Store` binary file.
     ///
     /// The layout matches the buddy-allocator B-tree format that Finder expects:
@@ -366,5 +462,66 @@ mod tests {
         assert!(has_pattern(b"icvp"));
         assert!(has_pattern(b"vSrn"));
         assert!(has_pattern(b"pBBk"));
+    }
+
+    // --- Decode tests ---
+
+    #[test]
+    fn full_roundtrip_encode_decode() {
+        let ds = test_ds_store();
+        let bytes = ds.encode();
+        let decoded = DsStore::decode(&bytes).unwrap();
+        assert_eq!(decoded.records.len(), 6);
+    }
+
+    #[test]
+    fn decode_reference_fixture() {
+        let reference = include_bytes!("../../tests/fixtures/reference.DS_Store");
+        let ds = DsStore::decode(reference).unwrap();
+        let codes: Vec<[u8; 4]> = ds.records.iter().map(|r| r.value.record_code()).collect();
+        assert!(codes.contains(b"bwsp"));
+        assert!(codes.contains(b"icvp"));
+        assert!(codes.contains(b"vSrn"));
+        assert!(codes.contains(b"Iloc"));
+    }
+
+    #[test]
+    fn compare_iloc_positions_with_reference() {
+        let reference = include_bytes!("../../tests/fixtures/reference.DS_Store");
+        let ds = DsStore::decode(reference).unwrap();
+        for rec in &ds.records {
+            if let RecordValue::Iloc(iloc) = &rec.value {
+                if rec.filename == "Applications" {
+                    assert_eq!((iloc.x, iloc.y), (500, 200));
+                } else if rec.filename.contains("JPEG Locker") {
+                    assert_eq!((iloc.x, iloc.y), (160, 200));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn decode_rejects_short_data() {
+        let result = DsStore::decode(&[0u8; 10]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decode_rejects_bad_file_header() {
+        let mut data = vec![0u8; 100];
+        // Wrong header (should be 0x00000001)
+        data[0..4].copy_from_slice(&[0, 0, 0, 2]);
+        data[4..8].copy_from_slice(b"Bud1");
+        let result = DsStore::decode(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decode_rejects_bad_bud1_magic() {
+        let mut data = vec![0u8; 100];
+        data[0..4].copy_from_slice(&[0, 0, 0, 1]);
+        data[4..8].copy_from_slice(b"Nope");
+        let result = DsStore::decode(&data);
+        assert!(result.is_err());
     }
 }
