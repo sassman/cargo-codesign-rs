@@ -20,6 +20,8 @@ cargo codesign status        # check credentials and tools
 cargo codesign macos --app target/release/bundle/MyApp.app
 ```
 
+- Styled DMG installers with background image and icon positions via `[macos.dmg]` in `sign.toml` — see [DMG Styling guide](https://sassman.github.io/cargo-codesign-rs/macos/dmg-styling.html)
+
 ## Documentation
 
 Full documentation is available in the [cargo-codesign book](https://sassman.github.io/cargo-codesign-rs/).

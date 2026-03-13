@@ -340,7 +340,14 @@ fn macos_app_mode(
 
     let dmg_path = app_path.with_extension("dmg");
     eprintln!("[2/5] Creating DMG...");
-    macos::create_dmg(app_path, &dmg_path, &app_name, verbose).unwrap_or_else(|e| {
+    macos::create_dmg(
+        app_path,
+        &dmg_path,
+        &app_name,
+        macos_config.dmg.as_ref(),
+        verbose,
+    )
+    .unwrap_or_else(|e| {
         eprintln!("✗ DMG creation failed: {e}");
         std::process::exit(1);
     });

@@ -43,6 +43,8 @@ Creates a DMG from the `.app` using `hdiutil`. The DMG is placed next to the `.a
 target/release/bundle/MyApp.app  →  target/release/bundle/MyApp.dmg
 ```
 
+When a `[macos.dmg]` section is present in `sign.toml`, the DMG gets a styled installer window with your background image and positioned icons. See [DMG Styling](./dmg-styling.md) for setup instructions.
+
 ### Step 3: Sign the DMG
 
 The DMG itself must also be codesigned — Apple's notarization service requires it.

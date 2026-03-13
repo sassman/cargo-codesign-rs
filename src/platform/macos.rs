@@ -97,17 +97,23 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
 ///
 /// Stages the `.app` alongside an `/Applications` symlink in a temporary
 /// directory so the resulting DMG shows the standard drag-to-install layout.
+///
+/// When `dmg_config` is provided, a background image and a generated
+/// `.DS_Store` (with icon positions and window properties) are placed in
+/// the staging directory before creating the compressed UDZO DMG.
 pub fn create_dmg(
     app_path: &Path,
     dmg_path: &Path,
     volume_name: &str,
+    dmg_config: Option<&crate::config::DmgConfig>,
     verbose: bool,
 ) -> Result<(), MacosSignError> {
-    let staging_dir = tempfile::tempdir().map_err(MacosSignError::Io)?;
-
     let app_name = app_path
         .file_name()
         .unwrap_or_else(|| std::ffi::OsStr::new("App.app"));
+
+    let staging_dir = tempfile::tempdir().map_err(MacosSignError::Io)?;
+
     let staged_app = staging_dir.path().join(app_name);
 
     // Copy the .app bundle into the staging directory
@@ -120,6 +126,19 @@ pub fn create_dmg(
     let staging_str = staging_dir.path().to_string_lossy().to_string();
     let dmg_str = dmg_path.to_string_lossy().to_string();
 
+    match dmg_config {
+        Some(cfg) => create_dmg_styled(&staging_str, &dmg_str, volume_name, app_name, cfg, verbose),
+        None => create_dmg_plain(&staging_str, &dmg_str, volume_name, verbose),
+    }
+}
+
+/// Plain DMG: single hdiutil call, no background or icon positioning.
+fn create_dmg_plain(
+    staging_str: &str,
+    dmg_str: &str,
+    volume_name: &str,
+    verbose: bool,
+) -> Result<(), MacosSignError> {
     let output = run(
         "hdiutil",
         &[
@@ -127,17 +146,91 @@ pub fn create_dmg(
             "-volname",
             volume_name,
             "-srcfolder",
-            &staging_str,
+            staging_str,
             "-ov",
             "-format",
             "UDZO",
-            &dmg_str,
+            dmg_str,
         ],
         verbose,
     )?;
     if !output.success {
         return Err(MacosSignError::DmgCreationFailed(output.stderr));
     }
+    Ok(())
+}
+
+/// Styled DMG: stage background image and a generated `.DS_Store` in the
+/// staging directory, then create a compressed UDZO DMG in one step.
+///
+/// This avoids the flaky mount → `AppleScript` → detach → convert pipeline
+/// by writing the `.DS_Store` directly with [`crate::ds_store::DsStoreBuilder`].
+fn create_dmg_styled(
+    staging_str: &str,
+    dmg_str: &str,
+    volume_name: &str,
+    app_name: &std::ffi::OsStr,
+    cfg: &crate::config::DmgConfig,
+    verbose: bool,
+) -> Result<(), MacosSignError> {
+    // Resolve background image path relative to cwd
+    let bg_path = std::env::current_dir()
+        .map_err(MacosSignError::Io)?
+        .join(&cfg.background);
+    if !bg_path.exists() {
+        return Err(MacosSignError::DmgCreationFailed(format!(
+            "background image not found: {}",
+            bg_path.display()
+        )));
+    }
+    // Always copy the background image as the canonical name so the alias
+    // and bookmark inside the .DS_Store match the file on disk exactly.
+    let bg_canonical = crate::ds_store::DMG_BG_FILENAME;
+
+    let staging = PathBuf::from(staging_str);
+    let bg_dir = staging.join(".background");
+    std::fs::create_dir_all(&bg_dir).map_err(MacosSignError::Io)?;
+    std::fs::copy(&bg_path, bg_dir.join(bg_canonical)).map_err(MacosSignError::Io)?;
+
+    // Generate .DS_Store with icon positions and window properties
+    let ds_store = crate::ds_store::DsStoreBuilder::new(app_name.to_string_lossy(), volume_name)
+        .window_size(cfg.window_size[0], cfg.window_size[1])
+        .icon_size(cfg.icon_size)
+        .app_position(cfg.app_position[0], cfg.app_position[1])
+        .apps_link_position(cfg.app_drop_link[0], cfg.app_drop_link[1])
+        .build();
+    let ds_store_bytes = ds_store.encode();
+    std::fs::write(staging.join(".DS_Store"), &ds_store_bytes).map_err(MacosSignError::Io)?;
+
+    if verbose {
+        eprintln!(
+            "cargo-codesign: wrote .DS_Store ({} bytes) to staging dir",
+            ds_store_bytes.len()
+        );
+    }
+
+    // Create compressed UDZO DMG directly from the staged directory
+    let output = run(
+        "hdiutil",
+        &[
+            "create",
+            "-volname",
+            volume_name,
+            "-srcfolder",
+            staging_str,
+            "-ov",
+            "-format",
+            "UDZO",
+            "-imagekey",
+            "zlib-level=9",
+            dmg_str,
+        ],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(MacosSignError::DmgCreationFailed(output.stderr));
+    }
+
     Ok(())
 }
 

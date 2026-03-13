@@ -167,6 +167,7 @@ mod tests {
                     notarization_issuer: Some("NONEXISTENT_TEST_VAR_5".to_string()),
                     ..Default::default()
                 },
+                dmg: None,
             }),
             ..Default::default()
         };
@@ -196,6 +197,7 @@ mod tests {
                     app_password: Some("NONEXISTENT_TEST_VAR_C".to_string()),
                     ..Default::default()
                 },
+                dmg: None,
             }),
             ..Default::default()
         };
