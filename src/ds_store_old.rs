@@ -151,7 +151,7 @@ fn block_address(offset: u32, size_class: u32) -> u32 {
 // ---------------------------------------------------------------------------
 
 /// Build the `bwsp` (window-state) binary plist blob.
-fn build_bwsp_plist(window_width: u32, window_height: u32) -> Vec<u8> {
+pub(crate) fn build_bwsp_plist(window_width: u32, window_height: u32) -> Vec<u8> {
     let mut dict = BTreeMap::new();
     dict.insert(
         "ContainerShowSidebar".to_string(),
@@ -175,7 +175,7 @@ fn build_bwsp_plist(window_width: u32, window_height: u32) -> Vec<u8> {
 }
 
 /// Build the `icvp` (icon-view preferences) binary plist blob.
-fn build_icvp_plist(icon_size: u32, background_filename: &str, volume_name: &str) -> Vec<u8> {
+pub(crate) fn build_icvp_plist(icon_size: u32, background_filename: &str, volume_name: &str) -> Vec<u8> {
     let mut dict: BTreeMap<String, PlistValue> = BTreeMap::new();
     dict.insert(
         "arrangeBy".to_string(),
@@ -261,7 +261,7 @@ fn build_icvp_plist(icon_size: u32, background_filename: &str, volume_name: &str
 /// | 19  | UTF-8 | POSIX path to volume mount point |
 /// | -1  | — | end sentinel |
 #[allow(clippy::cast_possible_truncation)]
-fn build_background_alias(background_filename: &str, volume_name: &str) -> Vec<u8> {
+pub(crate) fn build_background_alias(background_filename: &str, volume_name: &str) -> Vec<u8> {
     let posix_path = format!("/.background/{background_filename}");
     let volume_posix = format!("/Volumes/{volume_name}");
 
@@ -386,7 +386,7 @@ fn append_alias_tag_unicode(buf: &mut Vec<u8>, tag: i16, value: &str) {
 /// TOC: size(u32) + sentinel(u32) + id(u32) + next(u32) + count(u32) + entries.
 /// Each TOC entry: key(u32) + data_offset(u32) + flags(u32).
 #[allow(clippy::cast_possible_truncation)]
-fn build_background_bookmark(background_filename: &str, volume_name: &str) -> Vec<u8> {
+pub(crate) fn build_background_bookmark(background_filename: &str, volume_name: &str) -> Vec<u8> {
     let volume_path = format!("/Volumes/{volume_name}");
     let volume_url = format!("file:///Volumes/{volume_name}/");
 

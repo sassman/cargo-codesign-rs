@@ -164,7 +164,7 @@ fn create_dmg_plain(
 /// staging directory, then create a compressed UDZO DMG in one step.
 ///
 /// This avoids the flaky mount → `AppleScript` → detach → convert pipeline
-/// by writing the `.DS_Store` directly with [`crate::ds_store::write_ds_store`].
+/// by writing the `.DS_Store` directly with [`crate::ds_store_old::write_ds_store`].
 fn create_dmg_styled(
     staging_str: &str,
     dmg_str: &str,
@@ -185,7 +185,7 @@ fn create_dmg_styled(
     }
     // Always copy the background image as the canonical name so the alias
     // and bookmark inside the .DS_Store match the file on disk exactly.
-    let bg_canonical = crate::ds_store::DMG_BG_FILENAME;
+    let bg_canonical = crate::ds_store_old::DMG_BG_FILENAME;
 
     let staging = PathBuf::from(staging_str);
     let bg_dir = staging.join(".background");
@@ -193,7 +193,7 @@ fn create_dmg_styled(
     std::fs::copy(&bg_path, bg_dir.join(bg_canonical)).map_err(MacosSignError::Io)?;
 
     // Generate .DS_Store with icon positions and window properties
-    let layout = crate::ds_store::DmgLayout {
+    let layout = crate::ds_store_old::DmgLayout {
         window_width: cfg.window_size[0],
         window_height: cfg.window_size[1],
         icon_size: cfg.icon_size,
@@ -205,7 +205,7 @@ fn create_dmg_styled(
         background_filename: bg_canonical.to_string(),
         volume_name: volume_name.to_string(),
     };
-    let ds_store_bytes = crate::ds_store::write_ds_store(&layout);
+    let ds_store_bytes = crate::ds_store_old::write_ds_store(&layout);
     std::fs::write(staging.join(".DS_Store"), &ds_store_bytes).map_err(MacosSignError::Io)?;
 
     if verbose {
