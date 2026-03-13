@@ -372,7 +372,6 @@ fn read_blob(data: &[u8], pos: usize) -> Result<(&[u8], usize), DecodeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ds_store::encode::*;
     use crate::ds_store::types::*;
 
     #[test]

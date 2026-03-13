@@ -30,12 +30,12 @@
 //!
 //! The module is split into focused files by binary format:
 //!
-//! - [`alias`] — macOS Alias V2 (big-endian, 6-byte prefix + 144-byte body + tagged data)
-//! - [`bookmark`] — macOS Bookmark (little-endian, 64-byte header + data items + TOC)
-//! - [`allocator`] — Buddy allocator primitives (Bud1 prelude, DSDB, block addresses)
-//! - [`encode`] — `BinaryEncode` impls for record types (Iloc, bwsp, icvp, pBBk, vSrn)
-//! - [`decode`] — `BinaryDecode` impls and `DsRecord::decode_one` for parsing
-//! - [`types`] — Shared type definitions, traits, and error types
+//! - `alias` — macOS Alias V2 (big-endian, 6-byte prefix + 144-byte body + tagged data)
+//! - `bookmark` — macOS Bookmark (little-endian, 64-byte header + data items + TOC)
+//! - `allocator` — Buddy allocator primitives (Bud1 prelude, DSDB, block addresses)
+//! - `encode` — `BinaryEncode` impls for record types (Iloc, bwsp, icvp, pBBk, vSrn)
+//! - `decode` — `BinaryDecode` impls and `DsRecord::decode_one` for parsing
+//! - `types` — Shared type definitions, traits, and error types
 
 mod alias;
 mod allocator;

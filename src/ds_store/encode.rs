@@ -196,7 +196,6 @@ impl BinaryEncode for DsRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ds_store::alias::*;
     use crate::ds_store::types::*;
 
     #[test]
@@ -208,11 +207,11 @@ mod tests {
         assert_eq!(u32::from_be_bytes(bytes[4..8].try_into().unwrap()), 200);
         assert_eq!(
             u32::from_be_bytes(bytes[8..12].try_into().unwrap()),
-            0xFFFFFFFF
+            0xFFFF_FFFF
         );
         assert_eq!(
             u32::from_be_bytes(bytes[12..16].try_into().unwrap()),
-            0xFFFF0000
+            0xFFFF_0000
         );
     }
 
