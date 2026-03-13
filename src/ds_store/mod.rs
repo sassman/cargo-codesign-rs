@@ -4,6 +4,10 @@
 //! It writes the buddy-allocator B-tree format that Finder reads to determine
 //! window size, icon positions, and background images.
 //!
+//! **Note:** The `.DS_Store` format is undocumented by Apple. This implementation
+//! is reverse-engineered from observed Finder output and community research.
+//! Apple may change the format at any time without notice.
+//!
 //! # Usage
 //!
 //! ```rust
