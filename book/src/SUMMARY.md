@@ -13,6 +13,7 @@
 - [Overview](./macos/overview.md)
 - [Setting Up Credentials](./macos/credentials.md)
 - [Signing a GUI App (--app mode)](./macos/app-mode.md)
+- [DMG Installer Styling](./macos/dmg-styling.md)
 - [Signing a CLI Tool (bare binary mode)](./macos/bare-binary-mode.md)
 - [Auth Modes: api-key vs apple-id](./macos/auth-modes.md)
 - [Troubleshooting](./macos/troubleshooting.md)

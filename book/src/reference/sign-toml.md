@@ -23,6 +23,13 @@ identity = "Developer ID Application"
 entitlements = "entitlements.plist"
 auth = "api-key"    # "api-key" (CI) or "apple-id" (local/indie)
 
+[macos.dmg]
+background = "assets/dmg-background.png"
+window-size = [660, 400]
+icon-size = 128
+app-position = [160, 200]
+app-drop-link = [500, 200]
+
 [macos.env]
 # api-key mode
 certificate          = "MACOS_CERTIFICATE"
@@ -72,6 +79,20 @@ cert-error-days = 7
 | `identity` | string | `"Developer ID Application"` | Signing identity substring |
 | `entitlements` | path | none | Path to entitlements plist |
 | `auth` | `"api-key"` or `"apple-id"` | required | Notarization auth mode |
+
+### `[macos.dmg]`
+
+Optional. When present, the DMG gets a styled installer window with a background image and positioned icons. When absent, a plain DMG is created.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `background` | path | Background image (PNG recommended). Relative to the directory where `cargo codesign` runs. |
+| `window-size` | `[width, height]` | Finder window size in pixels, e.g. `[660, 400]`. |
+| `icon-size` | integer | Icon size in the Finder window (px), e.g. `128`. |
+| `app-position` | `[x, y]` | Position of the `.app` icon in the window. |
+| `app-drop-link` | `[x, y]` | Position of the `Applications` symlink icon. |
+
+All fields are required when the section is present. See [DMG Styling](../macos/dmg-styling.md) for a complete walkthrough.
 
 ### `[macos.env]`
 

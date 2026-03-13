@@ -1,7 +1,37 @@
 //! Typed `.DS_Store` file format — encode and decode.
 //!
-//! Replaces manual byte-slice manipulation with typed Rust structs.
-//! The module generates binary `.DS_Store` files for macOS DMG installers.
+//! This module generates binary `.DS_Store` files for macOS DMG installers.
+//! It writes the buddy-allocator B-tree format that Finder reads to determine
+//! window size, icon positions, and background images.
+//!
+//! # Usage
+//!
+//! ```rust
+//! use cargo_codesign::ds_store::{DsStoreBuilder, DMG_BG_FILENAME};
+//!
+//! let ds_store = DsStoreBuilder::new("MyApp.app", "MyApp")
+//!     .window_size(660, 400)
+//!     .icon_size(128)
+//!     .app_position(160, 200)
+//!     .apps_link_position(500, 200)
+//!     .build();
+//!
+//! let bytes = ds_store.encode();
+//! // Write `bytes` to `.DS_Store` in the DMG staging directory.
+//! // Copy your background image to `.background/bg.png` in the same directory.
+//! // Then run: hdiutil create -format UDZO -srcfolder <staging> output.dmg
+//! ```
+//!
+//! # Architecture
+//!
+//! The module is split into focused files by binary format:
+//!
+//! - [`alias`] — macOS Alias V2 (big-endian, 6-byte prefix + 144-byte body + tagged data)
+//! - [`bookmark`] — macOS Bookmark (little-endian, 64-byte header + data items + TOC)
+//! - [`allocator`] — Buddy allocator primitives (Bud1 prelude, DSDB, block addresses)
+//! - [`encode`] — `BinaryEncode` impls for record types (Iloc, bwsp, icvp, pBBk, vSrn)
+//! - [`decode`] — `BinaryDecode` impls and `DsRecord::decode_one` for parsing
+//! - [`types`] — Shared type definitions, traits, and error types
 
 mod alias;
 mod allocator;
