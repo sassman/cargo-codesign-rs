@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-03-13
+
+### Features
+
+- Native .DS_Store writer for styled DMG installers ([#14](https://github.com/sassman/cargo-codesign-rs/pull/14))
+
+### Bug Fixes
+
+- Fix DMG to include `/Applications` symlink ([#11](https://github.com/sassman/cargo-codesign-rs/pull/11))
+
+### Security
+
+- Bump clap from 4.5.60 to 4.6.0 ([#13](https://github.com/sassman/cargo-codesign-rs/pull/13))
+
+
+
 ## [0.1.2] - 2026-03-09
 
 ### Bug Fixes
