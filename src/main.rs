@@ -1025,6 +1025,12 @@ fn cmd_keygen(output_private: &std::path::Path, output_public: &std::path::Path)
     eprintln!("  Private key: {}", output_private.display());
     eprintln!("  Public key:  {}", output_public.display());
     eprintln!();
+    match cargo_codesign::keygen::update_gitignore(output_private) {
+        Ok(true) => eprintln!("✓ Added private key to .gitignore"),
+        Ok(false) => eprintln!("  Private key already listed in .gitignore"),
+        Err(e) => eprintln!("  Warning: could not update .gitignore: {e}"),
+    }
+    eprintln!();
     eprintln!("Store the private key as UPDATE_SIGNING_KEY in your CI secrets.");
     eprintln!("Embed the public key in your binary at compile time:");
     eprintln!("  const UPDATE_PUBLIC_KEY: &str = include_str!(\"../update-signing.pub\");");
