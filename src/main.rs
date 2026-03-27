@@ -1031,6 +1031,10 @@ fn cmd_keygen(output_private: &std::path::Path, output_public: &std::path::Path)
         Err(e) => eprintln!("  Warning: could not update .gitignore: {e}"),
     }
     eprintln!();
+    eprintln!("⚠️  SECURITY WARNING");
+    eprintln!("   NEVER commit the private key to git or share it with anyone!");
+    eprintln!("   Treat it like a password — store it only in your CI secrets.");
+    eprintln!();
     eprintln!("Store the private key as UPDATE_SIGNING_KEY in your CI secrets.");
     eprintln!("Embed the public key in your binary at compile time:");
     eprintln!("  const UPDATE_PUBLIC_KEY: &str = include_str!(\"../update-signing.pub\");");
