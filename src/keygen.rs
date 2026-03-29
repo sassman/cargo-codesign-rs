@@ -18,9 +18,7 @@ pub fn generate_keypair() -> Result<(String, String), Box<dyn std::error::Error>
 ///
 /// Returns `Ok(true)` if the entry was added, `Ok(false)` if it was already present.
 pub fn update_gitignore(private_key_path: &Path) -> Result<bool, std::io::Error> {
-    let dir = private_key_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let dir = private_key_path.parent().unwrap_or_else(|| Path::new("."));
     let gitignore_path = dir.join(".gitignore");
 
     let key_name = private_key_path

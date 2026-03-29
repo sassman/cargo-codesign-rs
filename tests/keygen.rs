@@ -72,4 +72,3 @@ fn update_gitignore_appends_to_existing_file() {
     assert!(contents.contains("/target"));
     assert!(contents.contains("my-private.key"));
 }
-
