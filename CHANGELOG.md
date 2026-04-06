@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-04-06
+
+### Features
+
+- Auto-add private key to `.gitignore` on keygen ([#22](https://github.com/sassman/cargo-codesign-rs/pull/22))
+
+### Miscellaneous
+
+- Bump actions/deploy-pages from 4 to 5 ([#20](https://github.com/sassman/cargo-codesign-rs/pull/20))
+
+### Security
+
+- Bump toml from 1.0.7+spec-1.1.0 to 1.1.2+spec-1.1.0 ([#24](https://github.com/sassman/cargo-codesign-rs/pull/24))
+
+
+
 ## [0.2.0] - 2026-03-13
 
 ### Features
