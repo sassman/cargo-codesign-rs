@@ -15,10 +15,18 @@ Output:
   Private key: ./update-signing.key
   Public key:  ./update-signing.pub
 
+✓ Added private key to .gitignore
+
+⚠️  SECURITY WARNING
+   NEVER commit the private key to git or share it with anyone!
+   Treat it like a password — store it only in your CI secrets.
+
 Store the private key as UPDATE_SIGNING_KEY in your CI secrets.
 Embed the public key in your binary at compile time:
   const UPDATE_PUBLIC_KEY: &str = include_str!("../update-signing.pub");
 ```
+
+The command automatically adds the private key file to `.gitignore` in the same directory, preventing accidental commits.
 
 ## Custom output paths
 
