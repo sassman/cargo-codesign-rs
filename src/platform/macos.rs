@@ -1,4 +1,4 @@
-use crate::subprocess::{run, SubprocessError};
+use crate::subprocess::{run, run_args, Arg, SubprocessError};
 use rand_core::RngCore;
 use std::path::{Path, PathBuf};
 
@@ -387,6 +387,15 @@ pub fn load_keychain_state(path: &Path) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Generate a keychain name and an independent password for ephemeral CI keychains.
+fn generate_keychain_credentials() -> (String, String) {
+    let name_suffix: u64 = rand_core::OsRng.next_u64();
+    let keychain_name = format!("cargo-sign-{name_suffix}.keychain");
+    // Use a separate random value so the password is not derivable from the name.
+    let keychain_password = format!("{}", rand_core::OsRng.next_u64());
+    (keychain_name, keychain_password)
+}
+
 /// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
 /// Returns the keychain path for later cleanup.
 pub fn import_certificate(
@@ -394,16 +403,19 @@ pub fn import_certificate(
     cert_password: &str,
     verbose: bool,
 ) -> Result<PathBuf, MacosSignError> {
-    let random_suffix: u64 = rand_core::OsRng.next_u64();
-    let keychain_name = format!("cargo-sign-{random_suffix}.keychain");
-    let keychain_password = format!("{random_suffix}");
+    let (keychain_name, keychain_password) = generate_keychain_credentials();
 
     let cert_str = cert_p12_path.to_string_lossy().to_string();
 
     // Create ephemeral keychain
-    let output = run(
+    let output = run_args(
         "security",
-        &["create-keychain", "-p", &keychain_password, &keychain_name],
+        &[
+            "create-keychain".into(),
+            "-p".into(),
+            Arg::sensitive(&keychain_password),
+            keychain_name.as_str().into(),
+        ],
         verbose,
     )?;
     if !output.success {
@@ -414,17 +426,17 @@ pub fn import_certificate(
     }
 
     // Import certificate
-    let output = run(
+    let output = run_args(
         "security",
         &[
-            "import",
-            &cert_str,
-            "-k",
-            &keychain_name,
-            "-P",
-            cert_password,
-            "-T",
-            "/usr/bin/codesign",
+            "import".into(),
+            cert_str.as_str().into(),
+            "-k".into(),
+            keychain_name.as_str().into(),
+            "-P".into(),
+            Arg::sensitive(cert_password),
+            "-T".into(),
+            "/usr/bin/codesign".into(),
         ],
         verbose,
     )?;
@@ -438,16 +450,16 @@ pub fn import_certificate(
     }
 
     // Set key partition list so codesign can access the key
-    let output = run(
+    let output = run_args(
         "security",
         &[
-            "set-key-partition-list",
-            "-S",
-            "apple-tool:,apple:,codesign:",
-            "-s",
-            "-k",
-            &keychain_password,
-            &keychain_name,
+            "set-key-partition-list".into(),
+            "-S".into(),
+            "apple-tool:,apple:,codesign:".into(),
+            "-s".into(),
+            "-k".into(),
+            Arg::sensitive(&keychain_password),
+            keychain_name.as_str().into(),
         ],
         verbose,
     )?;
@@ -564,5 +576,24 @@ mod tests {
         let state_path = dir.path().join(".codesign-keychain");
         let result = load_keychain_state(&state_path);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn keychain_credentials_have_independent_password() {
+        let (name, password) = generate_keychain_credentials();
+
+        assert!(name.starts_with("cargo-sign-"));
+        assert!(name.ends_with(".keychain"));
+
+        let suffix = name
+            .strip_prefix("cargo-sign-")
+            .unwrap()
+            .strip_suffix(".keychain")
+            .unwrap();
+
+        assert_ne!(
+            suffix, password,
+            "keychain password must not equal the name's random suffix"
+        );
     }
 }
