@@ -425,6 +425,20 @@ pub fn import_certificate(
         )));
     }
 
+    // Disable auto-lock (default is 300s which is too short for CI builds)
+    let output = run(
+        "security",
+        &["set-keychain-settings", "-lut", "3600", &keychain_name],
+        verbose,
+    )?;
+    if !output.success {
+        let _ = run("security", &["delete-keychain", &keychain_name], false);
+        return Err(MacosSignError::KeychainFailed(format!(
+            "set-keychain-settings failed: {}",
+            output.stderr
+        )));
+    }
+
     // Import certificate
     let output = run_args(
         "security",
