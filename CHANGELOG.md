@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-04-10
+
+### Bug Fixes
+
+- Prevent keychain password disclosure during CI import ([#26](https://github.com/sassman/cargo-codesign-rs/pull/26))
+
+
+
 ## [0.2.1] - 2026-04-06
 
 ### Features
