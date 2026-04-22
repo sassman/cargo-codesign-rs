@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-04-22
+
+### Miscellaneous
+
+- Bump actions/upload-pages-artifact from 4 to 5 ([#28](https://github.com/sassman/cargo-codesign-rs/pull/28))
+
+### Deps
+
+- Bump clap from 4.6.0 to 4.6.1 ([#30](https://github.com/sassman/cargo-codesign-rs/pull/30))
+
+
+
 ## [0.2.2] - 2026-04-10
 
 ### Bug Fixes
