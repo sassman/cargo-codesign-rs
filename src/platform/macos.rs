@@ -23,12 +23,19 @@ pub enum MacosSignError {
 pub struct CodesignOpts<'a> {
     pub identity: &'a str,
     pub entitlements: Option<&'a Path>,
+    /// Absolute path to a specific keychain to resolve `identity` from.
+    ///
+    /// When `Some`, `--keychain <path>` is appended to every `codesign`
+    /// invocation so the binary does not have to walk the user's keychain
+    /// search list. This is what makes ephemeral CI keychains work without
+    /// mutating global state via `security list-keychains -d user -s`.
+    pub keychain: Option<&'a Path>,
     pub verbose: bool,
 }
 
 /// Sign a single binary or bundle with `codesign`.
 pub fn codesign(path: &Path, opts: &CodesignOpts<'_>) -> Result<(), MacosSignError> {
-    let mut args = vec![
+    let mut args: Vec<&str> = vec![
         "--force",
         "--timestamp",
         "--options",
@@ -42,6 +49,13 @@ pub fn codesign(path: &Path, opts: &CodesignOpts<'_>) -> Result<(), MacosSignErr
         entitlements_str = e.to_string_lossy().to_string();
         args.push("--entitlements");
         args.push(&entitlements_str);
+    }
+
+    let keychain_str;
+    if let Some(k) = opts.keychain {
+        keychain_str = k.to_string_lossy().to_string();
+        args.push("--keychain");
+        args.push(&keychain_str);
     }
 
     let path_str = path.to_string_lossy().to_string();
@@ -68,6 +82,7 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
                 let inner_opts = CodesignOpts {
                     identity: opts.identity,
                     entitlements: None,
+                    keychain: opts.keychain,
                     verbose: opts.verbose,
                 };
                 codesign(&entry.path(), &inner_opts)?;
@@ -83,6 +98,7 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
             let inner_opts = CodesignOpts {
                 identity: opts.identity,
                 entitlements: None,
+                keychain: opts.keychain,
                 verbose: opts.verbose,
             };
             codesign(&entry.path(), &inner_opts)?;
@@ -254,6 +270,7 @@ pub fn codesign_dmg(dmg_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
     let no_entitlements_opts = CodesignOpts {
         identity: opts.identity,
         entitlements: None,
+        keychain: opts.keychain,
         verbose: opts.verbose,
     };
     codesign(dmg_path, &no_entitlements_opts)
@@ -362,59 +379,106 @@ pub fn decode_cert_to_tempfile(
 const KEYCHAIN_STATE_FILE: &str = ".codesign-keychain";
 
 /// Derive the keychain state file path from the project root.
+///
+/// The state file holds the absolute path to the ephemeral keychain that
+/// `--ci-import-cert` created, so `--ci-cleanup-cert` and the sign step can
+/// resolve it without depending on the user's keychain search list.
 pub fn keychain_state_path() -> PathBuf {
     PathBuf::from("target").join(KEYCHAIN_STATE_FILE)
 }
 
-/// Persist keychain name so `--ci-cleanup-cert` can find it later.
-pub fn save_keychain_state(path: &Path, keychain_name: &str) -> Result<(), MacosSignError> {
-    if let Some(parent) = path.parent() {
+/// Persist the absolute keychain path so subsequent commands
+/// (`--ci-cleanup-cert`, the sign step) can resolve the keychain without
+/// touching the user's keychain search list.
+pub fn save_keychain_state(state_path: &Path, keychain_path: &Path) -> Result<(), MacosSignError> {
+    if let Some(parent) = state_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             MacosSignError::KeychainFailed(format!("failed to create target dir: {e}"))
         })?;
     }
-    std::fs::write(path, keychain_name).map_err(|e| {
+    std::fs::write(state_path, keychain_path.to_string_lossy().as_bytes()).map_err(|e| {
         MacosSignError::KeychainFailed(format!("failed to write keychain state: {e}"))
     })?;
     Ok(())
 }
 
-/// Load the keychain name from a previous `--ci-import-cert` run.
-pub fn load_keychain_state(path: &Path) -> Option<String> {
-    std::fs::read_to_string(path)
+/// Load the absolute keychain path persisted by a previous
+/// `--ci-import-cert` run, or `None` if the state file is missing or empty.
+pub fn load_keychain_state(state_path: &Path) -> Option<PathBuf> {
+    std::fs::read_to_string(state_path)
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
 }
 
-/// Generate a keychain name and an independent password for ephemeral CI keychains.
-fn generate_keychain_credentials() -> (String, String) {
+/// Pick a directory to host the ephemeral keychain.
+///
+/// Preference: `$RUNNER_TEMP` (set by GitHub Actions runners) → the standard
+/// macOS user keychain dir `~/Library/Keychains/` → `$TMPDIR` → `/tmp`. The
+/// chosen directory is the one that exists and is writable; the keychain
+/// always lives at an absolute path so `security` invocations don't need the
+/// keychain to be on the user's search list.
+fn keychain_host_dir() -> PathBuf {
+    if let Some(runner_temp) = std::env::var_os("RUNNER_TEMP") {
+        let p = PathBuf::from(runner_temp);
+        if p.is_dir() {
+            return p;
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let p = PathBuf::from(home).join("Library").join("Keychains");
+        if p.is_dir() {
+            return p;
+        }
+    }
+    if let Some(tmp) = std::env::var_os("TMPDIR") {
+        return PathBuf::from(tmp);
+    }
+    PathBuf::from("/tmp")
+}
+
+/// Generate an absolute keychain path and an independent password for
+/// ephemeral CI keychains.
+fn generate_keychain_credentials() -> (PathBuf, String) {
     let name_suffix: u64 = rand_core::OsRng.next_u64();
-    let keychain_name = format!("cargo-sign-{name_suffix}.keychain");
-    // Use a separate random value so the password is not derivable from the name.
+    // The `-db` suffix matches what `security create-keychain <name>` would
+    // auto-append when given a bare name, keeping the on-disk artifact
+    // recognizable to any tool that walks the directory.
+    let keychain_file = format!("cargo-codesign-{name_suffix}.keychain-db");
+    let keychain_path = keychain_host_dir().join(keychain_file);
+    // Use a separate random value so the password is not derivable from the path.
     let keychain_password = format!("{}", rand_core::OsRng.next_u64());
-    (keychain_name, keychain_password)
+    (keychain_path, keychain_password)
 }
 
 /// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
-/// Returns the keychain path for later cleanup.
+///
+/// Creates the keychain at an absolute path so every subsequent `security`
+/// and `codesign` call can address it directly via that path. The keychain
+/// is intentionally **not** added to the user's keychain search list — the
+/// caller is expected to pass the returned path to [`CodesignOpts::keychain`]
+/// so `codesign --keychain <path>` can resolve the identity.
+///
+/// Returns the absolute path to the created keychain for later cleanup.
 pub fn import_certificate(
     cert_p12_path: &Path,
     cert_password: &str,
     verbose: bool,
 ) -> Result<PathBuf, MacosSignError> {
-    let (keychain_name, keychain_password) = generate_keychain_credentials();
+    let (keychain_path, keychain_password) = generate_keychain_credentials();
 
     let cert_str = cert_p12_path.to_string_lossy().to_string();
+    let keychain_str = keychain_path.to_string_lossy().to_string();
 
-    // Create ephemeral keychain
+    // Create ephemeral keychain at an absolute path
     let output = run_args(
         "security",
         &[
             "create-keychain".into(),
             "-p".into(),
             Arg::sensitive(&keychain_password),
-            keychain_name.as_str().into(),
+            keychain_str.as_str().into(),
         ],
         verbose,
     )?;
@@ -426,15 +490,41 @@ pub fn import_certificate(
     }
 
     // Disable auto-lock (default is 300s which is too short for CI builds)
-    let output = run(
+    let output = run_args(
         "security",
-        &["set-keychain-settings", "-lut", "3600", &keychain_name],
+        &[
+            "set-keychain-settings".into(),
+            "-lut".into(),
+            "3600".into(),
+            keychain_str.as_str().into(),
+        ],
         verbose,
     )?;
     if !output.success {
-        let _ = run("security", &["delete-keychain", &keychain_name], false);
+        let _ = run("security", &["delete-keychain", &keychain_str], false);
         return Err(MacosSignError::KeychainFailed(format!(
             "set-keychain-settings failed: {}",
+            output.stderr
+        )));
+    }
+
+    // Defensively unlock the keychain. `create-keychain -p` leaves the
+    // keychain unlocked, but this protects against an auto-lock racing the
+    // import on slow CI runners.
+    let output = run_args(
+        "security",
+        &[
+            "unlock-keychain".into(),
+            "-p".into(),
+            Arg::sensitive(&keychain_password),
+            keychain_str.as_str().into(),
+        ],
+        verbose,
+    )?;
+    if !output.success {
+        let _ = run("security", &["delete-keychain", &keychain_str], false);
+        return Err(MacosSignError::KeychainFailed(format!(
+            "unlock-keychain failed: {}",
             output.stderr
         )));
     }
@@ -446,7 +536,7 @@ pub fn import_certificate(
             "import".into(),
             cert_str.as_str().into(),
             "-k".into(),
-            keychain_name.as_str().into(),
+            keychain_str.as_str().into(),
             "-P".into(),
             Arg::sensitive(cert_password),
             "-T".into(),
@@ -456,7 +546,7 @@ pub fn import_certificate(
     )?;
     if !output.success {
         // Cleanup on failure
-        let _ = run("security", &["delete-keychain", &keychain_name], false);
+        let _ = run("security", &["delete-keychain", &keychain_str], false);
         return Err(MacosSignError::KeychainFailed(format!(
             "import failed: {}",
             output.stderr
@@ -473,19 +563,19 @@ pub fn import_certificate(
             "-s".into(),
             "-k".into(),
             Arg::sensitive(&keychain_password),
-            keychain_name.as_str().into(),
+            keychain_str.as_str().into(),
         ],
         verbose,
     )?;
     if !output.success {
-        let _ = run("security", &["delete-keychain", &keychain_name], false);
+        let _ = run("security", &["delete-keychain", &keychain_str], false);
         return Err(MacosSignError::KeychainFailed(format!(
             "set-key-partition-list failed: {}",
             output.stderr
         )));
     }
 
-    Ok(PathBuf::from(keychain_name))
+    Ok(keychain_path)
 }
 
 /// Verify a macOS artifact's code signature via `codesign --verify`.
@@ -575,13 +665,15 @@ mod tests {
     }
 
     #[test]
-    fn keychain_state_roundtrip() {
+    fn keychain_state_roundtrip_persists_absolute_path() {
         let dir = tempfile::TempDir::new().unwrap();
         let state_path = dir.path().join(".codesign-keychain");
+        let keychain_path = dir.path().join("cargo-codesign-42.keychain-db");
 
-        save_keychain_state(&state_path, "cargo-sign-12345.keychain").unwrap();
-        let loaded = load_keychain_state(&state_path).unwrap();
-        assert_eq!(loaded, "cargo-sign-12345.keychain");
+        save_keychain_state(&state_path, &keychain_path).unwrap();
+        let loaded = load_keychain_state(&state_path).expect("state should load");
+        assert_eq!(loaded, keychain_path);
+        assert!(loaded.is_absolute());
     }
 
     #[test]
@@ -593,21 +685,114 @@ mod tests {
     }
 
     #[test]
-    fn keychain_credentials_have_independent_password() {
-        let (name, password) = generate_keychain_credentials();
+    fn load_keychain_state_returns_none_when_empty() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let state_path = dir.path().join(".codesign-keychain");
+        std::fs::write(&state_path, "   \n").unwrap();
+        assert!(load_keychain_state(&state_path).is_none());
+    }
 
-        assert!(name.starts_with("cargo-sign-"));
-        assert!(name.ends_with(".keychain"));
+    #[test]
+    fn keychain_credentials_yield_absolute_path_and_independent_password() {
+        let (path, password) = generate_keychain_credentials();
 
-        let suffix = name
-            .strip_prefix("cargo-sign-")
+        assert!(
+            path.is_absolute(),
+            "keychain path must be absolute, got {}",
+            path.display()
+        );
+
+        let file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .expect("keychain path must have a file name");
+        assert!(file_name.starts_with("cargo-codesign-"));
+        assert!(file_name.ends_with(".keychain-db"));
+
+        let suffix = file_name
+            .strip_prefix("cargo-codesign-")
             .unwrap()
-            .strip_suffix(".keychain")
+            .strip_suffix(".keychain-db")
             .unwrap();
-
         assert_ne!(
             suffix, password,
-            "keychain password must not equal the name's random suffix"
+            "keychain password must not equal the path's random suffix"
+        );
+    }
+
+    fn build_codesign_args<'a>(
+        path: &'a Path,
+        opts: &'a CodesignOpts<'a>,
+        entitlements_buf: &'a mut String,
+        keychain_buf: &'a mut String,
+        path_buf: &'a mut String,
+    ) -> Vec<&'a str> {
+        let mut args: Vec<&str> = vec![
+            "--force",
+            "--timestamp",
+            "--options",
+            "runtime",
+            "--sign",
+            opts.identity,
+        ];
+
+        if let Some(e) = opts.entitlements {
+            *entitlements_buf = e.to_string_lossy().to_string();
+            args.push("--entitlements");
+            args.push(entitlements_buf.as_str());
+        }
+
+        if let Some(k) = opts.keychain {
+            *keychain_buf = k.to_string_lossy().to_string();
+            args.push("--keychain");
+            args.push(keychain_buf.as_str());
+        }
+
+        *path_buf = path.to_string_lossy().to_string();
+        args.push(path_buf.as_str());
+        args
+    }
+
+    #[test]
+    fn codesign_args_include_keychain_when_set() {
+        let path = Path::new("/tmp/MyApp.app");
+        let keychain = PathBuf::from("/tmp/cargo-codesign-1.keychain-db");
+        let opts = CodesignOpts {
+            identity: "Developer ID Application",
+            entitlements: None,
+            keychain: Some(&keychain),
+            verbose: false,
+        };
+
+        let (mut e, mut k, mut p) = (String::new(), String::new(), String::new());
+        let args = build_codesign_args(path, &opts, &mut e, &mut k, &mut p);
+
+        let kc_idx = args
+            .iter()
+            .position(|a| *a == "--keychain")
+            .expect("--keychain must be present");
+        assert_eq!(args[kc_idx + 1], "/tmp/cargo-codesign-1.keychain-db");
+        // --keychain must come before the trailing path positional
+        let path_idx = args.iter().rposition(|a| *a == "/tmp/MyApp.app").unwrap();
+        assert!(kc_idx + 1 < path_idx);
+    }
+
+    #[test]
+    fn codesign_args_omit_keychain_when_none() {
+        let path = Path::new("/tmp/MyApp.app");
+        let opts = CodesignOpts {
+            identity: "Developer ID Application",
+            entitlements: None,
+            keychain: None,
+            verbose: false,
+        };
+
+        let (mut e, mut k, mut p) = (String::new(), String::new(), String::new());
+        let args = build_codesign_args(path, &opts, &mut e, &mut k, &mut p);
+
+        assert!(
+            !args.contains(&"--keychain"),
+            "--keychain must not appear when keychain is None: {args:?}"
         );
     }
 }
