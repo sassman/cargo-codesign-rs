@@ -53,13 +53,13 @@ Apple's notarization service occasionally takes longer than usual.
 - Verify the certificate is installed: `security find-identity -v -p codesigning`
 - Check the identity string in `sign.toml` matches. The default `"Developer ID Application"` matches any Developer ID Application certificate.
 
-**CI:** `--ci-import-cert` creates an ephemeral keychain at an absolute path and intentionally does **not** add it to the user keychain search list — the sign step addresses it directly via `--keychain <path>`. As a result, `security find-identity -v -p codesigning` (which walks the search list) will not show the imported identity. To inspect the ephemeral keychain explicitly:
+**CI:** `--ci-import-cert` creates an ephemeral keychain at an absolute path *and* prepends it to the user keychain search list, so `security find-identity -v -p codesigning` should list your Developer ID Application identity right after import. If it doesn't, inspect the ephemeral keychain directly:
 
 ```bash
 security find-identity -v -p codesigning "$(cat target/.codesign-keychain)"
 ```
 
-If that lists your Developer ID Application identity, signing will work. If it's empty, the `.p12` is probably missing its private key — re-export the **identity** from Keychain Access (with the disclosure triangle expanded so the private key is included) instead of just the certificate.
+If that's also empty, the `.p12` is probably missing its private key — re-export the **identity** from Keychain Access (with the disclosure triangle expanded so the private key is included) instead of just the certificate.
 
 ## Verbose output
 
