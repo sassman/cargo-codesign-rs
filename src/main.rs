@@ -242,23 +242,10 @@ fn cmd_macos(
 
     let entitlements = entitlements_override.or(macos_config.entitlements.as_deref());
 
-    // If a previous `--ci-import-cert` ran, the absolute path to the
-    // ephemeral keychain is persisted in the state file. Resolving the
-    // identity from that keychain explicitly via `--keychain <path>` avoids
-    // any reliance on the user's keychain search list.
-    let ci_keychain = cargo_codesign::platform::macos::load_keychain_state(
-        &cargo_codesign::platform::macos::keychain_state_path(),
-    );
-    if let Some(ref kc) = ci_keychain {
-        eprintln!("  Using CI keychain: {}", kc.display());
-    }
-    let ci_keychain_ref = ci_keychain.as_deref();
-
     if let Some(dmg_path) = dmg {
         macos_dmg_mode(
             dmg_path,
             identity,
-            ci_keychain_ref,
             macos_config,
             skip_notarize,
             skip_staple,
@@ -269,23 +256,20 @@ fn cmd_macos(
             app_path,
             identity,
             entitlements,
-            ci_keychain_ref,
             macos_config,
             skip_notarize,
             skip_staple,
             verbose,
         );
     } else {
-        macos_bare_binary_mode(identity, ci_keychain_ref, verbose);
+        macos_bare_binary_mode(identity, verbose);
     }
 }
 
 #[cfg(target_os = "macos")]
-#[allow(clippy::too_many_arguments)]
 fn macos_dmg_mode(
     dmg_path: &std::path::Path,
     identity: &str,
-    keychain: Option<&std::path::Path>,
     macos_config: &cargo_codesign::config::MacosConfig,
     skip_notarize: bool,
     skip_staple: bool,
@@ -297,7 +281,6 @@ fn macos_dmg_mode(
     let opts = macos::CodesignOpts {
         identity,
         entitlements: None,
-        keychain,
         verbose,
     };
     macos::codesign_dmg(dmg_path, &opts).unwrap_or_else(|e| {
@@ -330,7 +313,6 @@ fn macos_app_mode(
     app_path: &std::path::Path,
     identity: &str,
     entitlements: Option<&std::path::Path>,
-    keychain: Option<&std::path::Path>,
     macos_config: &cargo_codesign::config::MacosConfig,
     skip_notarize: bool,
     skip_staple: bool,
@@ -348,7 +330,6 @@ fn macos_app_mode(
     let opts = macos::CodesignOpts {
         identity,
         entitlements,
-        keychain,
         verbose,
     };
     macos::codesign_app(app_path, &opts).unwrap_or_else(|e| {
@@ -376,7 +357,6 @@ fn macos_app_mode(
     let dmg_opts = macos::CodesignOpts {
         identity,
         entitlements: None,
-        keychain,
         verbose,
     };
     macos::codesign_dmg(&dmg_path, &dmg_opts).unwrap_or_else(|e| {
@@ -404,7 +384,7 @@ fn macos_app_mode(
 }
 
 #[cfg(target_os = "macos")]
-fn macos_bare_binary_mode(identity: &str, keychain: Option<&std::path::Path>, verbose: bool) {
+fn macos_bare_binary_mode(identity: &str, verbose: bool) {
     use cargo_codesign::platform::macos;
 
     eprintln!("Discovering binaries via cargo metadata...");
@@ -421,7 +401,6 @@ fn macos_bare_binary_mode(identity: &str, keychain: Option<&std::path::Path>, ve
     let opts = macos::CodesignOpts {
         identity,
         entitlements: None,
-        keychain,
         verbose,
     };
 

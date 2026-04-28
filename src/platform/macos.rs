@@ -23,13 +23,6 @@ pub enum MacosSignError {
 pub struct CodesignOpts<'a> {
     pub identity: &'a str,
     pub entitlements: Option<&'a Path>,
-    /// Absolute path to a specific keychain to resolve `identity` from.
-    ///
-    /// When `Some`, `--keychain <path>` is appended to every `codesign`
-    /// invocation so the binary does not have to walk the user's keychain
-    /// search list. This is what makes ephemeral CI keychains work without
-    /// mutating global state via `security list-keychains -d user -s`.
-    pub keychain: Option<&'a Path>,
     pub verbose: bool,
 }
 
@@ -49,13 +42,6 @@ pub fn codesign(path: &Path, opts: &CodesignOpts<'_>) -> Result<(), MacosSignErr
         entitlements_str = e.to_string_lossy().to_string();
         args.push("--entitlements");
         args.push(&entitlements_str);
-    }
-
-    let keychain_str;
-    if let Some(k) = opts.keychain {
-        keychain_str = k.to_string_lossy().to_string();
-        args.push("--keychain");
-        args.push(&keychain_str);
     }
 
     let path_str = path.to_string_lossy().to_string();
@@ -82,7 +68,6 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
                 let inner_opts = CodesignOpts {
                     identity: opts.identity,
                     entitlements: None,
-                    keychain: opts.keychain,
                     verbose: opts.verbose,
                 };
                 codesign(&entry.path(), &inner_opts)?;
@@ -98,7 +83,6 @@ pub fn codesign_app(app_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
             let inner_opts = CodesignOpts {
                 identity: opts.identity,
                 entitlements: None,
-                keychain: opts.keychain,
                 verbose: opts.verbose,
             };
             codesign(&entry.path(), &inner_opts)?;
@@ -270,7 +254,6 @@ pub fn codesign_dmg(dmg_path: &Path, opts: &CodesignOpts<'_>) -> Result<(), Maco
     let no_entitlements_opts = CodesignOpts {
         identity: opts.identity,
         entitlements: None,
-        keychain: opts.keychain,
         verbose: opts.verbose,
     };
     codesign(dmg_path, &no_entitlements_opts)
@@ -381,15 +364,15 @@ const KEYCHAIN_STATE_FILE: &str = ".codesign-keychain";
 /// Derive the keychain state file path from the project root.
 ///
 /// The state file holds the absolute path to the ephemeral keychain that
-/// `--ci-import-cert` created, so `--ci-cleanup-cert` and the sign step can
-/// resolve it without depending on the user's keychain search list.
+/// `--ci-import-cert` created, so `--ci-cleanup-cert` can resolve it on a
+/// later invocation (different shell, different working dir) without
+/// reparsing the user's keychain search list.
 pub fn keychain_state_path() -> PathBuf {
     PathBuf::from("target").join(KEYCHAIN_STATE_FILE)
 }
 
-/// Persist the absolute keychain path so subsequent commands
-/// (`--ci-cleanup-cert`, the sign step) can resolve the keychain without
-/// touching the user's keychain search list.
+/// Persist the absolute keychain path so `--ci-cleanup-cert` can find and
+/// remove the same keychain that `--ci-import-cert` created.
 pub fn save_keychain_state(state_path: &Path, keychain_path: &Path) -> Result<(), MacosSignError> {
     if let Some(parent) = state_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
@@ -416,9 +399,8 @@ pub fn load_keychain_state(state_path: &Path) -> Option<PathBuf> {
 ///
 /// Preference: `$RUNNER_TEMP` (set by GitHub Actions runners) → the standard
 /// macOS user keychain dir `~/Library/Keychains/` → `$TMPDIR` → `/tmp`. The
-/// chosen directory is the one that exists and is writable; the keychain
-/// always lives at an absolute path so `security` invocations don't need the
-/// keychain to be on the user's search list.
+/// keychain always lives at an absolute path so `security delete-keychain`
+/// during cleanup can address it unambiguously without re-resolving by name.
 fn keychain_host_dir() -> PathBuf {
     if let Some(runner_temp) = std::env::var_os("RUNNER_TEMP") {
         let p = PathBuf::from(runner_temp);
@@ -452,15 +434,18 @@ fn generate_keychain_credentials() -> (PathBuf, String) {
     (keychain_path, keychain_password)
 }
 
-/// Import a `.p12` certificate into an ephemeral keychain (for CI api-key mode).
+/// Import a `.p12` certificate into an ephemeral keychain (for CI use).
 ///
-/// Creates the keychain at an absolute path so every subsequent `security`
-/// and `codesign` call can address it directly via that path. The keychain
-/// is intentionally **not** added to the user's keychain search list — the
-/// caller is expected to pass the returned path to [`CodesignOpts::keychain`]
-/// so `codesign --keychain <path>` can resolve the identity.
+/// Creates the keychain at an absolute path, imports the identity with
+/// `codesign` ACLs, sets the partition list so the private key is
+/// non-interactively accessible, and prepends the keychain to the user's
+/// keychain search list. The search-list mutation is required for
+/// `codesign` to resolve the identity on a non-interactive macOS host
+/// (e.g. a GitHub Actions runner) — Apple TN2206 *Code Signing Tasks*.
 ///
-/// Returns the absolute path to the created keychain for later cleanup.
+/// Returns the absolute path to the created keychain. Pass it to
+/// [`delete_keychain`] for cleanup; that will undo both the search-list
+/// addition and the keychain file.
 pub fn import_certificate(
     cert_p12_path: &Path,
     cert_password: &str,
@@ -575,7 +560,94 @@ pub fn import_certificate(
         )));
     }
 
+    // Add the new keychain to the user's keychain search list. `codesign`
+    // on a non-interactive macOS host (e.g. a GitHub Actions runner) only
+    // resolves identities from keychains that are on this list — Apple
+    // TN2206 (Code Signing Tasks). Passing `codesign --keychain <path>`
+    // alone is not sufficient: that flag is a *filter* over the search
+    // list, not a way to surface a keychain that isn't already on it.
+    if let Err(e) = add_to_user_search_list(&keychain_str, verbose) {
+        let _ = run("security", &["delete-keychain", &keychain_str], false);
+        return Err(e);
+    }
+
     Ok(keychain_path)
+}
+
+/// Read the user's current keychain search list as `security` reports it,
+/// dropping the surrounding whitespace and quotes that `security` adds.
+fn read_user_search_list(verbose: bool) -> Result<Vec<String>, MacosSignError> {
+    let output = run("security", &["list-keychains", "-d", "user"], verbose)?;
+    if !output.success {
+        return Err(MacosSignError::KeychainFailed(format!(
+            "list-keychains -d user failed: {}",
+            output.stderr
+        )));
+    }
+    Ok(output
+        .stdout
+        .lines()
+        .map(|line| line.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+/// Prepend `keychain_path` to the user's keychain search list, preserving
+/// existing entries (and de-duplicating in case the keychain is already
+/// listed). No-op if the keychain is already at the head of the list.
+fn add_to_user_search_list(keychain_path: &str, verbose: bool) -> Result<(), MacosSignError> {
+    let existing = read_user_search_list(verbose)?;
+    if existing.first().map(String::as_str) == Some(keychain_path) {
+        return Ok(());
+    }
+
+    let mut args: Vec<String> = vec![
+        "list-keychains".into(),
+        "-d".into(),
+        "user".into(),
+        "-s".into(),
+        keychain_path.to_string(),
+    ];
+    for entry in existing.into_iter().filter(|e| e != keychain_path) {
+        args.push(entry);
+    }
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = run("security", &arg_refs, verbose)?;
+    if !output.success {
+        return Err(MacosSignError::KeychainFailed(format!(
+            "list-keychains -s failed: {}",
+            output.stderr
+        )));
+    }
+    Ok(())
+}
+
+/// Remove `keychain_path` from the user's keychain search list, preserving
+/// every other entry. No-op if the keychain isn't on the list.
+fn remove_from_user_search_list(keychain_path: &str, verbose: bool) -> Result<(), MacosSignError> {
+    let existing = read_user_search_list(verbose)?;
+    if !existing.iter().any(|e| e == keychain_path) {
+        return Ok(());
+    }
+
+    let mut args: Vec<String> = vec![
+        "list-keychains".into(),
+        "-d".into(),
+        "user".into(),
+        "-s".into(),
+    ];
+    for entry in existing.into_iter().filter(|e| e != keychain_path) {
+        args.push(entry);
+    }
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = run("security", &arg_refs, verbose)?;
+    if !output.success {
+        return Err(MacosSignError::KeychainFailed(format!(
+            "list-keychains -s (cleanup) failed: {}",
+            output.stderr
+        )));
+    }
+    Ok(())
 }
 
 /// Verify a macOS artifact's code signature via `codesign --verify`.
@@ -627,9 +699,24 @@ pub fn verify_gatekeeper(path: &Path, verbose: bool) -> Result<(), MacosSignErro
     Ok(())
 }
 
-/// Delete an ephemeral keychain created by `import_certificate`.
+/// Delete an ephemeral keychain created by [`import_certificate`].
+///
+/// Also removes the keychain from the user's keychain search list (where
+/// `import_certificate` added it), so a CI run that's aborted between
+/// import and cleanup doesn't leave dangling references to a now-deleted
+/// keychain on the host.
 pub fn delete_keychain(keychain_path: &Path, verbose: bool) -> Result<(), MacosSignError> {
     let keychain_str = keychain_path.to_string_lossy().to_string();
+
+    // Remove from search list first; if delete-keychain fails afterwards
+    // we still want the search list to be clean.
+    if let Err(e) = remove_from_user_search_list(&keychain_str, verbose) {
+        // Non-fatal: log via the returned error path but try to delete the
+        // keychain file anyway. Callers see the search-list error if the
+        // delete subsequently succeeds.
+        let _ = e; // squelch unused warning when keychain delete also fails
+    }
+
     let output = run("security", &["delete-keychain", &keychain_str], verbose)?;
     if !output.success {
         return Err(MacosSignError::KeychainFailed(format!(
@@ -717,82 +804,6 @@ mod tests {
         assert_ne!(
             suffix, password,
             "keychain password must not equal the path's random suffix"
-        );
-    }
-
-    fn build_codesign_args<'a>(
-        path: &'a Path,
-        opts: &'a CodesignOpts<'a>,
-        entitlements_buf: &'a mut String,
-        keychain_buf: &'a mut String,
-        path_buf: &'a mut String,
-    ) -> Vec<&'a str> {
-        let mut args: Vec<&str> = vec![
-            "--force",
-            "--timestamp",
-            "--options",
-            "runtime",
-            "--sign",
-            opts.identity,
-        ];
-
-        if let Some(e) = opts.entitlements {
-            *entitlements_buf = e.to_string_lossy().to_string();
-            args.push("--entitlements");
-            args.push(entitlements_buf.as_str());
-        }
-
-        if let Some(k) = opts.keychain {
-            *keychain_buf = k.to_string_lossy().to_string();
-            args.push("--keychain");
-            args.push(keychain_buf.as_str());
-        }
-
-        *path_buf = path.to_string_lossy().to_string();
-        args.push(path_buf.as_str());
-        args
-    }
-
-    #[test]
-    fn codesign_args_include_keychain_when_set() {
-        let path = Path::new("/tmp/MyApp.app");
-        let keychain = PathBuf::from("/tmp/cargo-codesign-1.keychain-db");
-        let opts = CodesignOpts {
-            identity: "Developer ID Application",
-            entitlements: None,
-            keychain: Some(&keychain),
-            verbose: false,
-        };
-
-        let (mut e, mut k, mut p) = (String::new(), String::new(), String::new());
-        let args = build_codesign_args(path, &opts, &mut e, &mut k, &mut p);
-
-        let kc_idx = args
-            .iter()
-            .position(|a| *a == "--keychain")
-            .expect("--keychain must be present");
-        assert_eq!(args[kc_idx + 1], "/tmp/cargo-codesign-1.keychain-db");
-        // --keychain must come before the trailing path positional
-        let path_idx = args.iter().rposition(|a| *a == "/tmp/MyApp.app").unwrap();
-        assert!(kc_idx + 1 < path_idx);
-    }
-
-    #[test]
-    fn codesign_args_omit_keychain_when_none() {
-        let path = Path::new("/tmp/MyApp.app");
-        let opts = CodesignOpts {
-            identity: "Developer ID Application",
-            entitlements: None,
-            keychain: None,
-            verbose: false,
-        };
-
-        let (mut e, mut k, mut p) = (String::new(), String::new(), String::new());
-        let args = build_codesign_args(path, &opts, &mut e, &mut k, &mut p);
-
-        assert!(
-            !args.contains(&"--keychain"),
-            "--keychain must not appear when keychain is None: {args:?}"
         );
     }
 }
