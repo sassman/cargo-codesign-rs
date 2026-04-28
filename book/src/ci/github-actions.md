@@ -66,8 +66,9 @@ jobs:
 
 ## Key points
 
-- **`--ci-import-cert`** reads the certificate env var names from `sign.toml`, base64-decodes the certificate, creates an ephemeral keychain, and imports it. No shell needed.
-- **`--ci-cleanup-cert`** deletes the ephemeral keychain created by `--ci-import-cert`. Runs `if: always()` so cleanup happens even if signing fails. Safe to call when no keychain exists (logs a warning, exits 0).
+- **`--ci-import-cert`** reads the certificate env var names from `sign.toml`, base64-decodes the certificate, creates an ephemeral keychain at an absolute path (under `$RUNNER_TEMP` when present, else `~/Library/Keychains`, else `$TMPDIR`), unlocks it, imports the identity, and persists the keychain's absolute path in `target/.codesign-keychain`. No shell glue, no `security list-keychains -s` step, no mutation of your user keychain search list.
+- **`cargo codesign macos --app`** picks up the persisted keychain path automatically and passes `--keychain <abs-path>` to every `codesign` invocation, so the identity is resolved directly from the ephemeral keychain instead of relying on search-list precedence.
+- **`--ci-cleanup-cert`** deletes the ephemeral keychain file *and* the `target/.codesign-keychain` state file. Runs `if: always()` so cleanup happens even if signing fails. Safe to call when no keychain exists (logs a warning, exits 0).
 - **`cargo codesign macos --app`** handles the full sign → DMG → notarize → staple chain.
 - The env var names (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`) come from your `sign.toml`. The GitHub secret names (e.g. `MACOS_CERTIFICATE_BASE64`) can be whatever you prefer.
 
