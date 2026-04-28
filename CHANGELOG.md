@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-04-28
+
+### Bug Fixes
+
+- Prepend ephemeral keychain to user search list (closes #34) ([#35](https://github.com/sassman/cargo-codesign-rs/pull/35))
+
+
+
 ## [0.2.3] - 2026-04-28
 
 ### Bug Fixes
