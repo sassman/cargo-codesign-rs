@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-05-09
+
+### Features
+
+- `verify --method macos` now handles `.zip` files (extracts and verifies the `.app` inside)
+- `verify --method macos` now also runs `stapler validate` to confirm notarization ticket is stapled
+
 ## [0.4.0] - 2026-05-08
 
 ### Features

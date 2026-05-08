@@ -718,6 +718,25 @@ pub fn verify_gatekeeper(path: &Path, verbose: bool) -> Result<(), MacosSignErro
     Ok(())
 }
 
+pub fn extract_zip(zip: &Path, dest: &Path, verbose: bool) -> Result<(), MacosSignError> {
+    let zip_str = zip.to_string_lossy().to_string();
+    let dest_str = dest.to_string_lossy().to_string();
+    let output = run("ditto", &["-x", "-k", &zip_str, &dest_str], verbose)?;
+    if !output.success {
+        return Err(MacosSignError::ZipFailed(output.stderr));
+    }
+    Ok(())
+}
+
+pub fn verify_stapler(path: &Path, verbose: bool) -> Result<(), MacosSignError> {
+    let path_str = path.to_string_lossy().to_string();
+    let output = run("stapler", &["validate", &path_str], verbose)?;
+    if !output.success {
+        return Err(MacosSignError::StaplingFailed(output.stderr));
+    }
+    Ok(())
+}
+
 /// Delete an ephemeral keychain created by [`import_certificate`].
 ///
 /// Also removes the keychain from the user's keychain search list (where

@@ -956,20 +956,72 @@ fn cmd_verify(
 }
 
 #[cfg(target_os = "macos")]
+fn find_app_in_dir(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    std::fs::read_dir(dir).ok()?.find_map(|entry| {
+        let path = entry.ok()?.path();
+        if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("app"))
+        {
+            Some(path)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(target_os = "macos")]
 fn cmd_verify_macos(artifact: &std::path::Path, verbose: bool) {
+    let is_zip = artifact
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"));
+
+    let (_tmp, verify_path);
+    if is_zip {
+        eprintln!("Extracting .app from zip...");
+        let tmp = tempfile::tempdir().unwrap_or_else(|e| {
+            eprintln!("✗ Failed to create temp dir: {e}");
+            std::process::exit(1);
+        });
+        cargo_codesign::platform::macos::extract_zip(artifact, tmp.path(), verbose).unwrap_or_else(
+            |e| {
+                eprintln!("✗ Failed to extract zip: {e}");
+                std::process::exit(1);
+            },
+        );
+        let app = find_app_in_dir(tmp.path()).unwrap_or_else(|| {
+            eprintln!("✗ No .app bundle found inside zip");
+            std::process::exit(1);
+        });
+        eprintln!("  ✓ Extracted: {}", app.display());
+        verify_path = app;
+        _tmp = Some(tmp);
+    } else {
+        verify_path = artifact.to_path_buf();
+        _tmp = None;
+    }
+
     eprintln!("Verifying macOS code signature...");
-    cargo_codesign::platform::macos::verify_codesign(artifact, verbose).unwrap_or_else(|e| {
+    cargo_codesign::platform::macos::verify_codesign(&verify_path, verbose).unwrap_or_else(|e| {
         eprintln!("✗ Codesign verification failed: {e}");
         std::process::exit(1);
     });
     eprintln!("  ✓ codesign --verify passed");
 
     eprintln!("Checking Gatekeeper assessment...");
-    cargo_codesign::platform::macos::verify_gatekeeper(artifact, verbose).unwrap_or_else(|e| {
+    cargo_codesign::platform::macos::verify_gatekeeper(&verify_path, verbose).unwrap_or_else(|e| {
         eprintln!("✗ Gatekeeper assessment failed: {e}");
         std::process::exit(1);
     });
     eprintln!("  ✓ spctl --assess passed");
+
+    eprintln!("Validating stapled notarization ticket...");
+    cargo_codesign::platform::macos::verify_stapler(&verify_path, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Stapler validation failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("  ✓ stapler validate passed");
+
     eprintln!("✓ Verified: {}", artifact.display());
 }
 
