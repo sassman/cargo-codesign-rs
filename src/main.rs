@@ -1,5 +1,12 @@
 use clap::{Parser, Subcommand};
 
+#[derive(Clone, Default, clap::ValueEnum)]
+enum AppOutputFormat {
+    #[default]
+    Dmg,
+    Zip,
+}
+
 #[derive(Parser)]
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
@@ -36,12 +43,15 @@ enum SignCommand {
     Status,
     /// Sign, notarize, and staple macOS artifacts
     Macos {
-        /// Path to .app bundle (triggers full sign+DMG+notarize+staple chain)
+        /// Path to .app bundle (triggers full sign+notarize+staple chain)
         #[arg(long, conflicts_with_all = ["ci_import_cert", "ci_cleanup_cert"])]
         app: Option<std::path::PathBuf>,
         /// Path to existing DMG (codesign + notarize + staple)
         #[arg(long, conflicts_with_all = ["ci_import_cert", "ci_cleanup_cert"])]
         dmg: Option<std::path::PathBuf>,
+        /// Output format when using --app: dmg (default) or zip
+        #[arg(long = "as", value_name = "FORMAT", requires = "app")]
+        output_format: Option<AppOutputFormat>,
         /// Entitlements plist (overrides config)
         #[arg(long)]
         entitlements: Option<std::path::PathBuf>,
@@ -134,6 +144,7 @@ fn main() {
         SignCommand::Macos {
             app,
             dmg,
+            output_format,
             entitlements,
             identity,
             skip_notarize,
@@ -150,6 +161,7 @@ fn main() {
                     args.config.as_deref(),
                     app.as_deref(),
                     dmg.as_deref(),
+                    &output_format.unwrap_or_default(),
                     entitlements.as_deref(),
                     identity.as_deref(),
                     skip_notarize,
@@ -207,6 +219,7 @@ fn cmd_macos(
     config_path: Option<&std::path::Path>,
     app: Option<&std::path::Path>,
     dmg: Option<&std::path::Path>,
+    output_format: &AppOutputFormat,
     entitlements_override: Option<&std::path::Path>,
     identity_override: Option<&str>,
     skip_notarize: bool,
@@ -257,6 +270,7 @@ fn cmd_macos(
             identity,
             entitlements,
             macos_config,
+            output_format,
             skip_notarize,
             skip_staple,
             verbose,
@@ -314,19 +328,47 @@ fn macos_app_mode(
     identity: &str,
     entitlements: Option<&std::path::Path>,
     macos_config: &cargo_codesign::config::MacosConfig,
+    output_format: &AppOutputFormat,
+    skip_notarize: bool,
+    skip_staple: bool,
+    verbose: bool,
+) {
+    match output_format {
+        AppOutputFormat::Zip => macos_app_zip(
+            app_path,
+            identity,
+            entitlements,
+            macos_config,
+            skip_notarize,
+            skip_staple,
+            verbose,
+        ),
+        AppOutputFormat::Dmg => macos_app_dmg(
+            app_path,
+            identity,
+            entitlements,
+            macos_config,
+            skip_notarize,
+            skip_staple,
+            verbose,
+        ),
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[allow(clippy::too_many_arguments)]
+fn macos_app_zip(
+    app_path: &std::path::Path,
+    identity: &str,
+    entitlements: Option<&std::path::Path>,
+    macos_config: &cargo_codesign::config::MacosConfig,
     skip_notarize: bool,
     skip_staple: bool,
     verbose: bool,
 ) {
     use cargo_codesign::platform::macos;
 
-    let app_name = app_path
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-
-    eprintln!("[1/7] Codesigning .app bundle...");
+    eprintln!("[1/5] Codesigning .app bundle...");
     let opts = macos::CodesignOpts {
         identity,
         entitlements,
@@ -339,21 +381,86 @@ fn macos_app_mode(
     eprintln!("  ✓ App signed");
 
     if !skip_notarize {
-        eprintln!("[2/7] Zipping .app for notarization...");
+        eprintln!("[2/5] Zipping .app for notarization...");
         let zip_path = macos::zip_app(app_path, verbose).unwrap_or_else(|e| {
             eprintln!("✗ Zip creation failed: {e}");
             std::process::exit(1);
         });
         eprintln!("  ✓ Zip created: {}", zip_path.display());
 
-        eprintln!("[3/7] Notarizing .app...");
+        eprintln!("[3/5] Notarizing .app...");
         notarize_artifact(&zip_path, macos_config, verbose);
         eprintln!("  ✓ Notarized");
 
         let _ = std::fs::remove_file(&zip_path);
 
         if !skip_staple {
-            eprintln!("[4/7] Stapling .app...");
+            eprintln!("[4/5] Stapling .app...");
+            macos::staple(app_path, verbose).unwrap_or_else(|e| {
+                eprintln!("✗ App stapling failed: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("  ✓ App stapled");
+        }
+    }
+
+    eprintln!("[5/5] Creating distributable zip...");
+    let zip_path = macos::zip_app(app_path, verbose).unwrap_or_else(|e| {
+        eprintln!("✗ Zip creation failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("  ✓ Zip created");
+
+    eprintln!("✓ Done: {}", zip_path.display());
+}
+
+#[cfg(target_os = "macos")]
+#[allow(clippy::too_many_arguments)]
+fn macos_app_dmg(
+    app_path: &std::path::Path,
+    identity: &str,
+    entitlements: Option<&std::path::Path>,
+    macos_config: &cargo_codesign::config::MacosConfig,
+    skip_notarize: bool,
+    skip_staple: bool,
+    verbose: bool,
+) {
+    use cargo_codesign::platform::macos;
+
+    let app_name = app_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    eprintln!("[1/8] Codesigning .app bundle...");
+    let opts = macos::CodesignOpts {
+        identity,
+        entitlements,
+        verbose,
+    };
+    macos::codesign_app(app_path, &opts).unwrap_or_else(|e| {
+        eprintln!("✗ App codesigning failed: {e}");
+        std::process::exit(1);
+    });
+    eprintln!("  ✓ App signed");
+
+    if !skip_notarize {
+        eprintln!("[2/8] Zipping .app for notarization...");
+        let zip_path = macos::zip_app(app_path, verbose).unwrap_or_else(|e| {
+            eprintln!("✗ Zip creation failed: {e}");
+            std::process::exit(1);
+        });
+        eprintln!("  ✓ Zip created: {}", zip_path.display());
+
+        eprintln!("[3/8] Notarizing .app...");
+        notarize_artifact(&zip_path, macos_config, verbose);
+        eprintln!("  ✓ Notarized");
+
+        let _ = std::fs::remove_file(&zip_path);
+
+        if !skip_staple {
+            eprintln!("[4/8] Stapling .app...");
             macos::staple(app_path, verbose).unwrap_or_else(|e| {
                 eprintln!("✗ App stapling failed: {e}");
                 std::process::exit(1);
@@ -363,7 +470,7 @@ fn macos_app_mode(
     }
 
     let dmg_path = app_path.with_extension("dmg");
-    eprintln!("[5/7] Creating DMG...");
+    eprintln!("[5/8] Creating DMG...");
     macos::create_dmg(
         app_path,
         &dmg_path,
@@ -377,7 +484,7 @@ fn macos_app_mode(
     });
     eprintln!("  ✓ DMG created: {}", dmg_path.display());
 
-    eprintln!("[6/7] Codesigning DMG...");
+    eprintln!("[6/8] Codesigning DMG...");
     let dmg_opts = macos::CodesignOpts {
         identity,
         entitlements: None,
@@ -389,13 +496,19 @@ fn macos_app_mode(
     });
     eprintln!("  ✓ DMG signed");
 
-    if !skip_notarize && !skip_staple {
-        eprintln!("[7/7] Stapling DMG...");
-        macos::staple(&dmg_path, verbose).unwrap_or_else(|e| {
-            eprintln!("✗ DMG stapling failed: {e}");
-            std::process::exit(1);
-        });
-        eprintln!("  ✓ DMG stapled");
+    if !skip_notarize {
+        eprintln!("[7/8] Notarizing DMG...");
+        notarize_artifact(&dmg_path, macos_config, verbose);
+        eprintln!("  ✓ Notarized");
+
+        if !skip_staple {
+            eprintln!("[8/8] Stapling DMG...");
+            macos::staple(&dmg_path, verbose).unwrap_or_else(|e| {
+                eprintln!("✗ DMG stapling failed: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("  ✓ DMG stapled");
+        }
     }
 
     eprintln!("✓ Done: {}", dmg_path.display());

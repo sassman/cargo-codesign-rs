@@ -13,15 +13,25 @@ Skip any of these and users see the dreaded "Apple could not verify" dialog — 
 `cargo codesign macos` runs the full pipeline:
 
 ```
-.app bundle ──► sign inner binaries ──► sign .app ──► create DMG
-                                                          │
-                                            sign DMG ◄────┘
-                                                │
-                                          notarize DMG
-                                                │
-                                           staple DMG
-                                                │
-                                         ✓ Ready to ship
+.app bundle ──► sign inner binaries ──► sign .app
+                                            │
+                          ┌─────────────────┼─────────────────┐
+                          │                                   │
+                     --as zip                            --as dmg
+                          │                                   │
+                   zip .app (submit)                    zip .app (submit)
+                          │                                   │
+                   notarize .app                        notarize .app
+                          │                                   │
+                    staple .app                          staple .app
+                          │                                   │
+                   create output zip                     create DMG
+                          │                                   │
+                   ✓ Ready to ship                    sign + notarize DMG
+                                                              │
+                                                         staple DMG
+                                                              │
+                                                       ✓ Ready to ship
 ```
 
 ## Before you start
@@ -65,11 +75,12 @@ lipo -create \
 
 Once you have a `.app`, cargo-codesign takes over.
 
-## Two modes
+## Three modes
 
 | Mode | Command | What it does |
 |------|---------|-------------|
-| **App mode** | `cargo codesign macos --app "MyApp.app"` | Full chain: sign app → create DMG → sign DMG → notarize → staple |
+| **App mode (zip)** | `cargo codesign macos --app "MyApp.app" --as zip` | Sign app → notarize → staple → output zip |
+| **App mode (dmg)** | `cargo codesign macos --app "MyApp.app" --as dmg` | Sign app → notarize → staple → create DMG → notarize DMG → staple DMG |
 | **Bare binary mode** | `cargo codesign macos` | Discover binaries via `cargo metadata`, sign each, copy to `target/signed/` |
 
-Most GUI apps use **app mode**. CLI tools distributed as standalone binaries use **bare binary mode**.
+Most GUI apps use **app mode**. Use `--as zip` for Homebrew cask distribution, `--as dmg` (default) for website downloads. CLI tools use **bare binary mode**.
