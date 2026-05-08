@@ -735,6 +735,7 @@ fn cmd_macos(
     _config_path: Option<&std::path::Path>,
     _app: Option<&std::path::Path>,
     _dmg: Option<&std::path::Path>,
+    _output_format: &AppOutputFormat,
     _entitlements_override: Option<&std::path::Path>,
     _identity_override: Option<&str>,
     _skip_notarize: bool,
