@@ -10,6 +10,8 @@ pub enum MacosSignError {
     CodesignFailed { path: PathBuf, detail: String },
     #[error("DMG creation failed: {0}")]
     DmgCreationFailed(String),
+    #[error("zip creation failed: {0}")]
+    ZipFailed(String),
     #[error("notarization failed: {0}")]
     NotarizationFailed(String),
     #[error("stapling failed: {0}")]
@@ -339,6 +341,23 @@ pub fn staple(artifact: &Path, verbose: bool) -> Result<(), MacosSignError> {
         return Err(MacosSignError::StaplingFailed(output.stderr));
     }
     Ok(())
+}
+
+/// Zip a `.app` bundle for notarization submission via `ditto`.
+pub fn zip_app(app_path: &Path, verbose: bool) -> Result<PathBuf, MacosSignError> {
+    let zip_path = app_path.with_extension("zip");
+    let app_str = app_path.to_string_lossy().to_string();
+    let zip_str = zip_path.to_string_lossy().to_string();
+
+    let output = run(
+        "ditto",
+        &["-c", "-k", "--keepParent", &app_str, &zip_str],
+        verbose,
+    )?;
+    if !output.success {
+        return Err(MacosSignError::ZipFailed(output.stderr));
+    }
+    Ok(zip_path)
 }
 
 /// Decode a base64-encoded `.p12` certificate to a temp file.
