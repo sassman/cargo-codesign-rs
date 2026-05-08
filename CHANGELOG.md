@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-05-08
+
+### Bug Fixes
+
+- Staple .app before DMG for Homebrew cask gatekeeper ([#37](https://github.com/sassman/cargo-codesign-rs/pull/37))
+
+
+
 ## [0.2.4] - 2026-04-28
 
 ### Bug Fixes
