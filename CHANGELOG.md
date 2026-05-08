@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-05-08
+
+### Features
+
+- Add `--as zip|dmg` flag to `--app` mode for choosing output format ([#40](https://github.com/sassman/cargo-codesign-rs/pull/40))
+  - `--as zip`: produces a zip containing the stapled `.app` (ideal for Homebrew cask)
+  - `--as dmg` (default): produces a fully notarized+stapled DMG
+
+### Bug Fixes
+
+- DMG flow now notarizes both `.app` and DMG separately, ensuring both carry stapled tickets
+
 ## [0.3.0] - 2026-05-08
 
 ### Bug Fixes
