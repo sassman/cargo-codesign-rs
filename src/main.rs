@@ -326,7 +326,7 @@ fn macos_app_mode(
         .to_string_lossy()
         .to_string();
 
-    eprintln!("[1/7] Codesigning .app bundle...");
+    eprintln!("[1/6] Codesigning .app bundle...");
     let opts = macos::CodesignOpts {
         identity,
         entitlements,
@@ -339,21 +339,21 @@ fn macos_app_mode(
     eprintln!("  ✓ App signed");
 
     if !skip_notarize {
-        eprintln!("[2/7] Zipping .app for notarization...");
+        eprintln!("[2/6] Zipping .app for notarization...");
         let zip_path = macos::zip_app(app_path, verbose).unwrap_or_else(|e| {
             eprintln!("✗ Zip creation failed: {e}");
             std::process::exit(1);
         });
         eprintln!("  ✓ Zip created: {}", zip_path.display());
 
-        eprintln!("[3/7] Notarizing .app...");
+        eprintln!("[3/6] Notarizing .app...");
         notarize_artifact(&zip_path, macos_config, verbose);
         eprintln!("  ✓ Notarized");
 
         let _ = std::fs::remove_file(&zip_path);
 
         if !skip_staple {
-            eprintln!("[4/7] Stapling .app...");
+            eprintln!("[4/6] Stapling .app...");
             macos::staple(app_path, verbose).unwrap_or_else(|e| {
                 eprintln!("✗ App stapling failed: {e}");
                 std::process::exit(1);
@@ -363,7 +363,7 @@ fn macos_app_mode(
     }
 
     let dmg_path = app_path.with_extension("dmg");
-    eprintln!("[5/7] Creating DMG...");
+    eprintln!("[5/6] Creating DMG...");
     macos::create_dmg(
         app_path,
         &dmg_path,
@@ -377,7 +377,7 @@ fn macos_app_mode(
     });
     eprintln!("  ✓ DMG created: {}", dmg_path.display());
 
-    eprintln!("[6/7] Codesigning DMG...");
+    eprintln!("[6/6] Codesigning DMG...");
     let dmg_opts = macos::CodesignOpts {
         identity,
         entitlements: None,
@@ -388,15 +388,6 @@ fn macos_app_mode(
         std::process::exit(1);
     });
     eprintln!("  ✓ DMG signed");
-
-    if !skip_notarize && !skip_staple {
-        eprintln!("[7/7] Stapling DMG...");
-        macos::staple(&dmg_path, verbose).unwrap_or_else(|e| {
-            eprintln!("✗ DMG stapling failed: {e}");
-            std::process::exit(1);
-        });
-        eprintln!("  ✓ DMG stapled");
-    }
 
     eprintln!("✓ Done: {}", dmg_path.display());
 }
