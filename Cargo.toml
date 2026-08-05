@@ -23,7 +23,7 @@ serde = { version = "1", features = ["derive"] }
 toml = "1"
 thiserror = "2"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-base64 = "0.22"
+base64 = "0.23"
 rand_core = { version = "0.6", features = ["getrandom"] }
 dotenvy = "0.15"
 plist = "1"
