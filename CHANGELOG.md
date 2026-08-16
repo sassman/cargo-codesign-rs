@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-08-16
+
+### Miscellaneous
+
+- Bump actions/checkout from 6 to 7 ([#44](https://github.com/sassman/cargo-codesign-rs/pull/44))
+- Bump taiki-e/install-action from 2 to 2.85.3 ([#59](https://github.com/sassman/cargo-codesign-rs/pull/59))
+- Bump taiki-e/install-action from 2.85.3 to 2.85.7 ([#63](https://github.com/sassman/cargo-codesign-rs/pull/63))
+- Bump taiki-e/install-action from 2.85.7 to 2.85.11 ([#69](https://github.com/sassman/cargo-codesign-rs/pull/69))
+
+### Security
+
+- Bump clap from 4.6.1 to 4.6.4 ([#54](https://github.com/sassman/cargo-codesign-rs/pull/54))
+- Bump serde_json from 1.0.150 to 1.0.151 ([#53](https://github.com/sassman/cargo-codesign-rs/pull/53))
+- Bump toml from 1.1.2+spec-1.1.0 to 1.1.3+spec-1.1.0 ([#48](https://github.com/sassman/cargo-codesign-rs/pull/48))
+
+### Deps
+
+- Bump plist from 1.9.0 to 1.10.0 ([#46](https://github.com/sassman/cargo-codesign-rs/pull/46))
+- Bump serde from 1.0.228 to 1.0.229 ([#51](https://github.com/sassman/cargo-codesign-rs/pull/51))
+- Bump thiserror from 2.0.18 to 2.0.19 ([#50](https://github.com/sassman/cargo-codesign-rs/pull/50))
+- Bump clap from 4.6.4 to 4.6.5 ([#61](https://github.com/sassman/cargo-codesign-rs/pull/61))
+- Bump toml from 1.1.3+spec-1.1.0 to 1.1.4+spec-1.1.0 ([#57](https://github.com/sassman/cargo-codesign-rs/pull/57))
+- Bump base64 from 0.22.1 to 0.23.0 ([#56](https://github.com/sassman/cargo-codesign-rs/pull/56))
+- Bump thiserror from 2.0.19 to 2.0.20 ([#68](https://github.com/sassman/cargo-codesign-rs/pull/68))
+- Bump base64 from 0.23.0 to 0.23.1 ([#67](https://github.com/sassman/cargo-codesign-rs/pull/67))
+- Bump clap from 4.6.5 to 4.6.6 ([#66](https://github.com/sassman/cargo-codesign-rs/pull/66))
+- Bump ed25519-dalek from 2.2.0 to 3.0.0 ([#47](https://github.com/sassman/cargo-codesign-rs/pull/47))
+
+
+
 ## [0.4.2] - 2026-06-03
 
 ### Miscellaneous
