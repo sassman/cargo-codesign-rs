@@ -1,11 +1,12 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use ed25519_dalek::SigningKey;
-use rand_core::OsRng;
+use getrandom::{rand_core::UnwrapErr, SysRng};
 use std::io::Write;
 use std::path::Path;
 
 pub fn generate_keypair() -> Result<(String, String), Box<dyn std::error::Error>> {
-    let signing_key = SigningKey::generate(&mut OsRng);
+    let mut csprng = UnwrapErr(SysRng);
+    let signing_key = SigningKey::generate(&mut csprng);
     let verifying_key = signing_key.verifying_key();
 
     let private_b64 = STANDARD.encode(signing_key.to_bytes());

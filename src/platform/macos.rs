@@ -1,5 +1,4 @@
 use crate::subprocess::{run, run_args, Arg, SubprocessError};
-use rand_core::RngCore;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -442,15 +441,21 @@ fn keychain_host_dir() -> PathBuf {
 /// Generate an absolute keychain path and an independent password for
 /// ephemeral CI keychains.
 fn generate_keychain_credentials() -> (PathBuf, String) {
-    let name_suffix: u64 = rand_core::OsRng.next_u64();
+    let name_suffix = random_u64();
     // The `-db` suffix matches what `security create-keychain <name>` would
     // auto-append when given a bare name, keeping the on-disk artifact
     // recognizable to any tool that walks the directory.
     let keychain_file = format!("cargo-codesign-{name_suffix}.keychain-db");
     let keychain_path = keychain_host_dir().join(keychain_file);
     // Use a separate random value so the password is not derivable from the path.
-    let keychain_password = format!("{}", rand_core::OsRng.next_u64());
+    let keychain_password = format!("{}", random_u64());
     (keychain_path, keychain_password)
+}
+
+fn random_u64() -> u64 {
+    let mut bytes = [0u8; 8];
+    getrandom::fill(&mut bytes).expect("OS RNG must be available");
+    u64::from_le_bytes(bytes)
 }
 
 /// Import a `.p12` certificate into an ephemeral keychain (for CI use).
