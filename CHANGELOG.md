@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.4] - 2026-09-15
+
+### Miscellaneous
+
+- Bump taiki-e/install-action from 2.85.11 to 2.85.13 ([#70](https://github.com/sassman/cargo-codesign-rs/pull/70))
+- Bump taiki-e/install-action from 2.85.13 to 2.86.3 ([#75](https://github.com/sassman/cargo-codesign-rs/pull/75))
+- Bump taiki-e/install-action from 2.86.3 to 2.87.0 ([#79](https://github.com/sassman/cargo-codesign-rs/pull/79))
+- *(deps)* Update lock file
+- Bump taiki-e/install-action from 2.87.0 to 2.87.12 ([#91](https://github.com/sassman/cargo-codesign-rs/pull/91))
+
+### Deps
+
+- Bump getrandom from 0.4.2 to 0.4.3 ([#71](https://github.com/sassman/cargo-codesign-rs/pull/71))
+- Bump plist from 1.10.0 to 1.10.1 ([#88](https://github.com/sassman/cargo-codesign-rs/pull/88))
+- Bump toml from 1.1.4+spec-1.1.0 to 1.1.6+spec-1.1.0 ([#89](https://github.com/sassman/cargo-codesign-rs/pull/89))
+
+
+
 ## [0.4.3] - 2026-08-16
 
 ### Miscellaneous
